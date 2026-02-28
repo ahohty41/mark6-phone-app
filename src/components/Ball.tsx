@@ -4,44 +4,47 @@ import { getBallColor } from '../utils/lotteryUtils';
 
 interface BallProps {
   number: number;
+  size?: 'default' | 'small';
 }
 
 /**
  * 中式燈籠造型的號碼容器
  * 參考 assets/code.html 的設計
  */
-export const Ball: React.FC<BallProps> = React.memo(({ number }) => {
+export const Ball: React.FC<BallProps> = React.memo(({ number, size = 'default' }) => {
   const baseColor = getBallColor(number);
+  const isSmall = size === 'small';
 
-  // 根據馬會顏色生成漸變深色
-  const getDarkerColor = (color: string) => {
-    if (color === '#FF3B30') return '#7f1d1d'; // 深紅
-    if (color === '#007AFF') return '#1e3a8a'; // 深藍
-    if (color === '#34C759') return '#064e3b'; // 深綠
-    return '#333';
-  };
-
-  const darkerColor = getDarkerColor(baseColor);
+  const lanternW = isSmall ? 36 : 48;
+  const lanternH = isSmall ? 47 : 62;
+  const fontSize = isSmall ? 17 : 22;
+  const capH = isSmall ? 4 : 6;
+  const capTop = isSmall ? -3 : -4;
+  const capBot = isSmall ? -3 : -4;
+  const stringH = isSmall ? 8 : 10;
+  const tasselSize = isSmall ? 6 : 7;
 
   return (
-    <View style={styles.container}>
-      {/* 燈籠主體 */}
-      <View style={[styles.lantern, { backgroundColor: baseColor, borderColor: '#d4af37' }]}>
-        {/* 燈籠頂部金蓋 */}
-        <View style={styles.goldCapTop} />
-
-        {/* 垂直條紋效果 */}
+    <View style={[styles.container, isSmall && styles.containerSmall]}>
+      <View
+        style={[
+          styles.lantern,
+          { width: lanternW, height: lanternH, backgroundColor: baseColor, borderColor: '#d4af37' },
+        ]}
+      >
+        <View style={[styles.goldCapTop, { height: capH, top: capTop }]} />
         <View style={styles.stripe} />
-
-        <Text style={styles.text}>{number}</Text>
-
-        {/* 燈籠底部金蓋 */}
-        <View style={styles.goldCapBottom} />
+        <Text style={[styles.text, { fontSize }]}>{number}</Text>
+        <View style={[styles.goldCapBottom, { height: capH, bottom: capBot }]} />
       </View>
 
-      {/* 燈籠下方的掛線與流蘇 */}
-      <View style={styles.string} />
-      <View style={[styles.tassel, { backgroundColor: baseColor }]} />
+      <View style={[styles.string, { height: stringH }]} />
+      <View
+        style={[
+          styles.tassel,
+          { width: tasselSize, height: tasselSize, borderRadius: tasselSize / 2, backgroundColor: baseColor },
+        ]}
+      />
     </View>
   );
 });
@@ -49,12 +52,9 @@ export const Ball: React.FC<BallProps> = React.memo(({ number }) => {
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
-    marginHorizontal: 10,
-    marginBottom: 25,
   },
+  containerSmall: {},
   lantern: {
-    width: 50,
-    height: 65,
     borderRadius: 8,
     borderLeftWidth: 1,
     borderRightWidth: 1,
@@ -69,17 +69,13 @@ const styles = StyleSheet.create({
   },
   goldCapTop: {
     position: 'absolute',
-    top: -4,
     width: '60%',
-    height: 6,
     backgroundColor: '#d4af37',
     borderRadius: 2,
   },
   goldCapBottom: {
     position: 'absolute',
-    bottom: -4,
     width: '60%',
-    height: 6,
     backgroundColor: '#d4af37',
     borderRadius: 2,
   },
@@ -91,8 +87,7 @@ const styles = StyleSheet.create({
     left: '48%',
   },
   text: {
-    color: '#fcd34d', // Gold light
-    fontSize: 24,
+    color: '#fcd34d',
     fontWeight: '900',
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
     textShadowOffset: { width: 1, height: 1 },
@@ -101,13 +96,9 @@ const styles = StyleSheet.create({
   },
   string: {
     width: 2,
-    height: 12,
     backgroundColor: '#d4af37',
   },
   tassel: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
     borderWidth: 1,
     borderColor: '#d4af37',
   },

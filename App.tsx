@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,18 +7,130 @@ import {
   SafeAreaView,
   StatusBar,
   ScrollView,
-  ImageBackground
+  ActivityIndicator,
 } from 'react-native';
 import { Ball } from './src/components/Ball';
 import { generateMarkSixNumbers } from './src/utils/lotteryUtils';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { ApiResponse, HistoryEntry, MarkSixResult, FavoriteEntry } from './src/types/lottery';
+import { HistoryModal } from './src/components/HistoryModal';
+import { AnalysisModal } from './src/components/AnalysisModal';
+import { FavoriteModal } from './src/components/FavoriteModal';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// TODO: 部署後改為正式 Vercel URL
+const API_URL = 'http://192.168.31.204:3000/api';
+
+const formatJackpot = (amount: number): string => {
+  return amount.toLocaleString();
+};
+
+const formatDrawDate = (dateStr: string): string => {
+  return dateStr.split(/[T+]/)[0];
+};
 
 export default function App() {
   const [currentNumbers, setCurrentNumbers] = useState<number[]>([]);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [historyVisible, setHistoryVisible] = useState(false);
+  const [analysisVisible, setAnalysisVisible] = useState(false);
+  const [favorites, setFavorites] = useState<FavoriteEntry[]>([]);
+  const [favoriteVisible, setFavoriteVisible] = useState(false);
+  const [lastDraw, setLastDraw] = useState<MarkSixResult | null>(null);
+  const [jackpot, setJackpot] = useState<number | null>(null);
+  const [drawLoading, setDrawLoading] = useState(true);
+
+  useEffect(() => {
+    const loadFavorites = async () => {
+      try {
+        const stored = await AsyncStorage.getItem('favorites');
+        if (stored) {
+          const parsed: FavoriteEntry[] = JSON.parse(stored, (key, value) =>
+            key === 'timestamp' ? new Date(value) : value,
+          );
+          setFavorites(parsed);
+        }
+      } catch {
+        // Silently fail
+      }
+    };
+    loadFavorites();
+  }, []);
+
+  useEffect(() => {
+    AsyncStorage.setItem('favorites', JSON.stringify(favorites)).catch(() => {});
+  }, [favorites]);
+
+  useEffect(() => {
+    const fetchDrawData = async () => {
+      try {
+        const response = await fetch(API_URL);
+        const json: ApiResponse = await response.json();
+        if (json.success && json.data) {
+          setLastDraw(json.data);
+          if (json.data.nextDraw?.estimatedJackpot) {
+            setJackpot(json.data.nextDraw.estimatedJackpot);
+          }
+        }
+      } catch {
+        // Silently fail
+      } finally {
+        setDrawLoading(false);
+      }
+    };
+    fetchDrawData();
+  }, []);
 
   const handleGenerate = useCallback(() => {
     const newNumbers = generateMarkSixNumbers();
     setCurrentNumbers(newNumbers);
+    setHistory((prev) => {
+      const entry: HistoryEntry = {
+        id: Date.now(),
+        numbers: newNumbers,
+        timestamp: new Date(),
+      };
+      const updated = [entry, ...prev];
+      return updated.length > 10 ? updated.slice(0, 10) : updated;
+    });
+  }, []);
+
+  const isFavorited = useMemo(() => {
+    if (currentNumbers.length === 0) return false;
+    const key = currentNumbers.join(',');
+    return favorites.some((f) => f.numbers.join(',') === key);
+  }, [currentNumbers, favorites]);
+
+  const handleAddFavorite = useCallback(() => {
+    if (currentNumbers.length === 0) return;
+    const key = currentNumbers.join(',');
+    const exists = favorites.some((f) => f.numbers.join(',') === key);
+    if (exists) {
+      setFavorites((prev) => prev.filter((f) => f.numbers.join(',') !== key));
+    } else {
+      setFavorites((prev) => [
+        { id: Date.now(), numbers: [...currentNumbers], timestamp: new Date() },
+        ...prev,
+      ]);
+    }
+  }, [currentNumbers, favorites]);
+
+  const handleRemoveFavorite = useCallback((id: number) => {
+    setFavorites((prev) => prev.filter((f) => f.id !== id));
+  }, []);
+
+  const favoriteKeys = useMemo(
+    () => new Set(favorites.map((f) => f.numbers.join(','))),
+    [favorites],
+  );
+
+  const handleToggleFavorite = useCallback((numbers: number[]) => {
+    const key = numbers.join(',');
+    setFavorites((prev) => {
+      const exists = prev.some((f) => f.numbers.join(',') === key);
+      if (exists) return prev.filter((f) => f.numbers.join(',') !== key);
+      return [{ id: Date.now(), numbers: [...numbers], timestamp: new Date() }, ...prev];
+    });
   }, []);
 
   const ballList = useMemo(() => {
@@ -31,65 +143,88 @@ export default function App() {
     <View style={styles.fullScreen}>
       <StatusBar barStyle="light-content" />
 
-      {/* 模擬絲綢質感背景 */}
       <View style={styles.silkBackground}>
         <SafeAreaView style={styles.container}>
-
-          {/* Header Section */}
-          <View style={styles.header}>
-            <TouchableOpacity style={styles.goldIconButton}>
-              <Ionicons name="menu" size={24} color="#fcd34d" />
-            </TouchableOpacity>
-
-            <View style={styles.fortuneMode}>
-              <Ionicons name="sparkles" size={16} color="#fcd34d" />
-              <Text style={styles.fortuneText}>Fortune Mode</Text>
-              <View style={styles.switchStub} />
-            </View>
-
-            <TouchableOpacity style={styles.goldIconButton}>
-              <Ionicons name="settings-outline" size={24} color="#fcd34d" />
-            </TouchableOpacity>
-          </View>
-
           <ScrollView contentContainerStyle={styles.scrollContent}>
-            {/* Title Section */}
+
+            {/* Title */}
             <View style={styles.titleContainer}>
               <Text style={styles.mainTitle}>香港六合彩</Text>
               <View style={styles.titleUnderline} />
               <Text style={styles.subTitle}>TRADITIONAL FORTUNE GENERATOR</Text>
             </View>
 
-            {/* Jackpot Card */}
-            <View style={styles.jackpotCard}>
-              <View style={styles.jackpotContent}>
-                <Text style={styles.jackpotLabel}>NEXT JACKPOT ESTIMATE</Text>
-                <Text style={styles.jackpotValue}>
-                  <Text style={styles.goldSymbol}>$</Text> 88,000,000
+            {/* Last Draw Result Card */}
+            {drawLoading ? (
+              <ActivityIndicator color="#fcd34d" style={{ marginBottom: 16 }} />
+            ) : lastDraw ? (
+              <View style={styles.card}>
+                <View style={[styles.corner, styles.tl]} />
+                <View style={[styles.corner, styles.tr]} />
+                <View style={[styles.corner, styles.bl]} />
+                <View style={[styles.corner, styles.br]} />
+
+                <Text style={styles.cardTitle}>上期開獎結果</Text>
+                <Text style={styles.cardSubtitle}>
+                  第 {lastDraw.drawNumber} 期 · {formatDrawDate(lastDraw.drawDate)}
                 </Text>
+
+                <View style={styles.lastDrawBalls}>
+                  {lastDraw.numbers.map((num, i) => (
+                    <Ball key={`last-${num}-${i}`} number={Number(num)} size="small" />
+                  ))}
+                  <Text style={styles.lastDrawPlus}>+</Text>
+                  <Ball key="extra" number={Number(lastDraw.extraNumber)} size="small" />
+                </View>
               </View>
-              <View style={styles.jackpotIcon}>
-                <MaterialCommunityIcons name="currency-usd" size={30} color="white" />
-              </View>
-              {/* 四角金邊 */}
+            ) : null}
+
+            {/* Jackpot Card */}
+            <View style={styles.card}>
               <View style={[styles.corner, styles.tl]} />
               <View style={[styles.corner, styles.tr]} />
               <View style={[styles.corner, styles.bl]} />
               <View style={[styles.corner, styles.br]} />
-            </View>
 
-            {/* Lanterns Display Area */}
-            <View style={styles.lanternArea}>
-              {currentNumbers.length > 0 ? (
-                <View style={styles.lanternGrid}>{ballList}</View>
+              <Text style={styles.jackpotLabel}>NEXT JACKPOT ESTIMATE</Text>
+              {drawLoading ? (
+                <ActivityIndicator color="#fcd34d" style={{ marginTop: 6 }} />
               ) : (
-                <View style={styles.placeholder}>
-                  <Text style={styles.placeholderText}>誠心求籤，必有後福</Text>
+                <View style={styles.jackpotRow}>
+                  <Text style={styles.jackpotIcon}>💰</Text>
+                  <Text style={styles.jackpotValue}>
+                    <Text style={styles.goldSymbol}>$</Text>{' '}
+                    {jackpot ? formatJackpot(jackpot) : '---'}
+                  </Text>
                 </View>
               )}
             </View>
 
-            <Text style={styles.timeText}>Auspicious Time: Today, 12:47 PM</Text>
+            {/* Generated Numbers Section */}
+            <Text style={styles.sectionLabel}>CURRENT GENERATED NUMBERS</Text>
+
+            <View style={styles.lanternArea}>
+              {currentNumbers.length > 0 ? (
+                <View style={styles.lanternGrid}>
+                  {ballList}
+                </View>
+              ) : (
+                <View style={styles.placeholderBalls} />
+              )}
+            </View>
+
+            {/* Star Button */}
+            <TouchableOpacity onPress={handleAddFavorite} style={styles.starButton}>
+              <Ionicons
+                name={isFavorited ? 'star' : 'star-outline'}
+                size={26}
+                color="#fcd34d"
+              />
+            </TouchableOpacity>
+
+            {/* Fortune Text */}
+            <Text style={styles.fortuneText}>誠心求籤，必有後福</Text>
+            <Text style={styles.timeText}>Today, 12:47 PM</Text>
 
             {/* Generate Button */}
             <TouchableOpacity
@@ -98,32 +233,50 @@ export default function App() {
               activeOpacity={0.8}
             >
               <View style={styles.buttonInner}>
-                <MaterialCommunityIcons name="brush" size={24} color="#fcd34d" style={styles.brushIcon} />
+                <MaterialCommunityIcons name="brush" size={22} color="#fcd34d" style={styles.brushIcon} />
                 <Text style={styles.buttonText}>求籤 (Generate)</Text>
               </View>
             </TouchableOpacity>
 
-            {/* Bottom Navigation */}
-            <View style={styles.bottomNav}>
-              <TouchableOpacity style={styles.navItem}>
-                <MaterialCommunityIcons name="history" size={20} color="#fcd34d" opacity={0.6} />
-                <Text style={styles.navText}>History</Text>
-              </TouchableOpacity>
-              <View style={styles.navDivider} />
-              <TouchableOpacity style={styles.navItem}>
-                <MaterialCommunityIcons name="chart-bell-curve" size={20} color="#fcd34d" opacity={0.6} />
-                <Text style={styles.navText}>Analysis</Text>
-              </TouchableOpacity>
-              <View style={styles.navDivider} />
-              <TouchableOpacity style={styles.navItem}>
-                <Ionicons name="options-outline" size={20} color="#fcd34d" opacity={0.6} />
-                <Text style={styles.navText}>Settings</Text>
-              </TouchableOpacity>
-            </View>
-
           </ScrollView>
+
+          {/* Fixed Bottom Navigation */}
+          <View style={styles.bottomNav}>
+            <TouchableOpacity style={styles.navItem} onPress={() => setHistoryVisible(true)}>
+              <MaterialCommunityIcons name="history" size={24} color="#fcd34d" />
+              <Text style={styles.navText}>History</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.navItem} onPress={() => setAnalysisVisible(true)}>
+              <MaterialCommunityIcons name="chart-bell-curve" size={24} color="#fcd34d" />
+              <Text style={styles.navText}>Analysis</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.navItem} onPress={() => setFavoriteVisible(true)}>
+              <Ionicons name="star-outline" size={24} color="#fcd34d" />
+              <Text style={styles.navText}>Favorite</Text>
+            </TouchableOpacity>
+          </View>
+
         </SafeAreaView>
       </View>
+
+      <HistoryModal
+        visible={historyVisible}
+        history={history}
+        favoriteKeys={favoriteKeys}
+        onClose={() => setHistoryVisible(false)}
+        onToggleFavorite={handleToggleFavorite}
+      />
+      <AnalysisModal
+        visible={analysisVisible}
+        apiBaseUrl={API_URL}
+        onClose={() => setAnalysisVisible(false)}
+      />
+      <FavoriteModal
+        visible={favoriteVisible}
+        favorites={favorites}
+        onClose={() => setFavoriteVisible(false)}
+        onRemove={handleRemoveFavorite}
+      />
     </View>
   );
 }
@@ -135,64 +288,24 @@ const styles = StyleSheet.create({
   },
   silkBackground: {
     flex: 1,
-    backgroundColor: '#450a0a', // 深紅/黑背景
+    backgroundColor: '#450a0a',
   },
   container: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 10,
-  },
-  goldIconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.2)',
-  },
-  fortuneMode: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(69, 10, 10, 0.8)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.5)',
-  },
-  fortuneText: {
-    color: '#fcd34d',
-    fontSize: 12,
-    fontWeight: 'bold',
-    marginLeft: 5,
-    marginRight: 8,
-  },
-  switchStub: {
-    width: 30,
-    height: 16,
-    backgroundColor: '#7f1d1d',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#d4af37',
-  },
   scrollContent: {
     alignItems: 'center',
-    paddingBottom: 40,
+    paddingTop: 10,
+    paddingBottom: 16,
   },
+
+  /* Title */
   titleContainer: {
     alignItems: 'center',
-    marginTop: 30,
-    marginBottom: 30,
+    marginBottom: 14,
   },
   mainTitle: {
-    fontSize: 40,
+    fontSize: 36,
     fontWeight: '900',
     color: '#fcd34d',
     textShadowColor: 'rgba(212, 175, 55, 0.5)',
@@ -203,7 +316,7 @@ const styles = StyleSheet.create({
     width: '80%',
     height: 1,
     backgroundColor: 'rgba(212, 175, 55, 0.3)',
-    marginVertical: 10,
+    marginVertical: 6,
   },
   subTitle: {
     fontSize: 10,
@@ -211,89 +324,143 @@ const styles = StyleSheet.create({
     letterSpacing: 3,
     opacity: 0.8,
   },
-  jackpotCard: {
+
+  /* Shared Card Style */
+  card: {
     width: '90%',
     backgroundColor: 'rgba(69, 10, 10, 0.9)',
-    borderRadius: 15,
-    padding: 20,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.3)',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    borderColor: 'rgba(212, 175, 55, 0.4)',
+    marginBottom: 12,
     alignItems: 'center',
     position: 'relative',
   },
-  jackpotContent: {
-    flex: 1,
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fcd34d',
   },
+  cardSubtitle: {
+    fontSize: 12,
+    color: 'rgba(252, 211, 77, 0.6)',
+    marginTop: 4,
+    marginBottom: 10,
+  },
+
+  /* Gold Corners */
+  corner: {
+    position: 'absolute',
+    width: 14,
+    height: 14,
+    borderColor: '#d4af37',
+  },
+  tl: { top: 6, left: 6, borderTopWidth: 2, borderLeftWidth: 2 },
+  tr: { top: 6, right: 6, borderTopWidth: 2, borderRightWidth: 2 },
+  bl: { bottom: 6, left: 6, borderBottomWidth: 2, borderLeftWidth: 2 },
+  br: { bottom: 6, right: 6, borderBottomWidth: 2, borderRightWidth: 2 },
+
+  /* Last Draw Balls */
+  lastDrawBalls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  lastDrawPlus: {
+    color: '#fcd34d',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginHorizontal: 2,
+  },
+
+  /* Jackpot */
   jackpotLabel: {
-    fontSize: 10,
-    color: 'rgba(252, 211, 77, 0.7)',
-    letterSpacing: 1,
-    marginBottom: 5,
+    fontSize: 13,
+    color: 'rgba(252, 211, 77, 0.8)',
+    letterSpacing: 2,
+    fontWeight: 'bold',
+    marginBottom: 6,
+  },
+  jackpotRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  jackpotIcon: {
+    fontSize: 28,
+    marginRight: 8,
   },
   jackpotValue: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 'bold',
     color: 'white',
   },
   goldSymbol: {
     color: '#fcd34d',
   },
-  jackpotIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#b45309',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#fcd34d',
+
+  /* Section Label */
+  sectionLabel: {
+    fontSize: 13,
+    color: 'rgba(252, 211, 77, 0.8)',
+    letterSpacing: 2,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    marginTop: 4,
   },
-  corner: {
-    position: 'absolute',
-    width: 10,
-    height: 10,
-    borderColor: '#d4af37',
-  },
-  tl: { top: 5, left: 5, borderTopWidth: 2, borderLeftWidth: 2 },
-  tr: { top: 5, right: 5, borderTopWidth: 2, borderRightWidth: 2 },
-  bl: { bottom: 5, left: 5, borderBottomWidth: 2, borderLeftWidth: 2 },
-  br: { bottom: 5, right: 5, borderBottomWidth: 2, borderRightWidth: 2 },
+
+  /* Lantern Area */
   lanternArea: {
-    width: '100%',
-    minHeight: 250,
-    justifyContent: 'center',
+    width: '95%',
     alignItems: 'center',
-    marginTop: 40,
+    minHeight: 90,
+    justifyContent: 'center',
   },
   lanternGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
+    justifyContent: 'space-evenly',
     width: '100%',
   },
-  placeholder: {
-    opacity: 0.5,
+  placeholderBalls: {
+    height: 80,
   },
-  placeholderText: {
+
+  /* Star Button */
+  starButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: 'rgba(212, 175, 55, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 10,
+  },
+
+  /* Fortune Text */
+  fortuneText: {
     color: '#fcd34d',
     fontSize: 18,
-    fontStyle: 'italic',
+    fontWeight: 'bold',
+    marginBottom: 4,
   },
   timeText: {
-    fontSize: 10,
+    fontSize: 12,
     color: 'rgba(252, 211, 77, 0.5)',
-    marginTop: 20,
-    marginBottom: 30,
+    marginBottom: 16,
   },
+
+  /* Generate Button */
   generateButton: {
     width: '90%',
-    height: 65,
-    borderRadius: 12,
+    height: 54,
+    borderRadius: 27,
     overflow: 'hidden',
     borderWidth: 2,
-    borderColor: 'rgba(212, 175, 55, 0.7)',
+    borderColor: 'rgba(212, 175, 55, 0.5)',
   },
   buttonInner: {
     flex: 1,
@@ -304,32 +471,31 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#fcd34d',
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: 'bold',
-    letterSpacing: 4,
+    letterSpacing: 3,
   },
   brushIcon: {
     marginRight: 10,
   },
+
+  /* Fixed Bottom Nav */
   bottomNav: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'space-around',
     alignItems: 'center',
-    marginTop: 40,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(212, 175, 55, 0.15)',
+    backgroundColor: 'rgba(69, 10, 10, 0.95)',
   },
   navItem: {
     alignItems: 'center',
-    paddingHorizontal: 15,
+    flex: 1,
   },
   navText: {
-    fontSize: 10,
-    color: 'rgba(252, 211, 77, 0.5)',
+    fontSize: 11,
+    color: 'rgba(252, 211, 77, 0.7)',
     marginTop: 4,
-    textTransform: 'uppercase',
-  },
-  navDivider: {
-    width: 1,
-    height: 20,
-    backgroundColor: 'rgba(212, 175, 55, 0.2)',
   },
 });
