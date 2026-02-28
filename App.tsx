@@ -11,12 +11,15 @@ import {
 } from 'react-native';
 import { Ball } from './src/components/Ball';
 import { generateMarkSixNumbers } from './src/utils/lotteryUtils';
+import { generateZodiacNumbers, ZODIAC_LIST, HOUR_LIST, Zodiac, ChineseHour } from './src/utils/zodiacUtils';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { ApiResponse, HistoryEntry, MarkSixResult, FavoriteEntry } from './src/types/lottery';
 import { HistoryModal } from './src/components/HistoryModal';
 import { AnalysisModal } from './src/components/AnalysisModal';
 import { FavoriteModal } from './src/components/FavoriteModal';
+import { SettingsModal } from './src/components/SettingsModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LanguageProvider, useTranslation } from './src/i18n/LanguageContext';
 
 // TODO: 部署後改為正式 Vercel URL
 const API_URL = 'http://192.168.31.204:3000/api';
@@ -29,32 +32,43 @@ const formatDrawDate = (dateStr: string): string => {
   return dateStr.split(/[T+]/)[0];
 };
 
-export default function App() {
+function AppContent() {
+  const { t } = useTranslation();
   const [currentNumbers, setCurrentNumbers] = useState<number[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [historyVisible, setHistoryVisible] = useState(false);
   const [analysisVisible, setAnalysisVisible] = useState(false);
   const [favorites, setFavorites] = useState<FavoriteEntry[]>([]);
   const [favoriteVisible, setFavoriteVisible] = useState(false);
+  const [settingsVisible, setSettingsVisible] = useState(false);
   const [lastDraw, setLastDraw] = useState<MarkSixResult | null>(null);
   const [jackpot, setJackpot] = useState<number | null>(null);
   const [drawLoading, setDrawLoading] = useState(true);
+  const [mode, setMode] = useState<'random' | 'zodiac'>('random');
+  const [selectedZodiac, setSelectedZodiac] = useState<Zodiac>('rat');
+  const [selectedHour, setSelectedHour] = useState<ChineseHour>('zi');
 
   useEffect(() => {
-    const loadFavorites = async () => {
+    const loadStored = async () => {
       try {
-        const stored = await AsyncStorage.getItem('favorites');
-        if (stored) {
-          const parsed: FavoriteEntry[] = JSON.parse(stored, (key, value) =>
+        const [storedFav, storedZodiac, storedHour] = await Promise.all([
+          AsyncStorage.getItem('favorites'),
+          AsyncStorage.getItem('zodiac'),
+          AsyncStorage.getItem('hour'),
+        ]);
+        if (storedFav) {
+          const parsed: FavoriteEntry[] = JSON.parse(storedFav, (key, value) =>
             key === 'timestamp' ? new Date(value) : value,
           );
           setFavorites(parsed);
         }
+        if (storedZodiac) setSelectedZodiac(storedZodiac as Zodiac);
+        if (storedHour) setSelectedHour(storedHour as ChineseHour);
       } catch {
         // Silently fail
       }
     };
-    loadFavorites();
+    loadStored();
   }, []);
 
   useEffect(() => {
@@ -82,7 +96,9 @@ export default function App() {
   }, []);
 
   const handleGenerate = useCallback(() => {
-    const newNumbers = generateMarkSixNumbers();
+    const newNumbers = mode === 'zodiac'
+      ? generateZodiacNumbers(selectedZodiac, selectedHour)
+      : generateMarkSixNumbers();
     setCurrentNumbers(newNumbers);
     setHistory((prev) => {
       const entry: HistoryEntry = {
@@ -93,6 +109,34 @@ export default function App() {
       const updated = [entry, ...prev];
       return updated.length > 10 ? updated.slice(0, 10) : updated;
     });
+  }, [mode, selectedZodiac, selectedHour]);
+
+  const handleSelectZodiac = useCallback((z: Zodiac) => {
+    setSelectedZodiac(z);
+    AsyncStorage.setItem('zodiac', z).catch(() => {});
+  }, []);
+
+  const handleSelectHour = useCallback((h: ChineseHour) => {
+    setSelectedHour(h);
+    AsyncStorage.setItem('hour', h).catch(() => {});
+  }, []);
+
+  const zodiacTranslationKey = useCallback((key: string): string => {
+    const map: Record<string, string> = {
+      rat: 'zodiacRat', ox: 'zodiacOx', tiger: 'zodiacTiger', rabbit: 'zodiacRabbit',
+      dragon: 'zodiacDragon', snake: 'zodiacSnake', horse: 'zodiacHorse', goat: 'zodiacGoat',
+      monkey: 'zodiacMonkey', rooster: 'zodiacRooster', dog: 'zodiacDog', pig: 'zodiacPig',
+    };
+    return map[key] || key;
+  }, []);
+
+  const hourTranslationKey = useCallback((key: string): string => {
+    const map: Record<string, string> = {
+      zi: 'hourZi', chou: 'hourChou', yin: 'hourYin', mao: 'hourMao',
+      chen: 'hourChen', si: 'hourSi', wu: 'hourWu', wei: 'hourWei',
+      shen: 'hourShen', you: 'hourYou', xu: 'hourXu', hai: 'hourHai',
+    };
+    return map[key] || key;
   }, []);
 
   const isFavorited = useMemo(() => {
@@ -147,11 +191,20 @@ export default function App() {
         <SafeAreaView style={styles.container}>
           <ScrollView contentContainerStyle={styles.scrollContent}>
 
+            {/* Header with Settings */}
+            <View style={styles.header}>
+              <View style={{ width: 40 }} />
+              <View style={{ flex: 1 }} />
+              <TouchableOpacity onPress={() => setSettingsVisible(true)}>
+                <Ionicons name="settings-outline" size={24} color="#fcd34d" />
+              </TouchableOpacity>
+            </View>
+
             {/* Title */}
             <View style={styles.titleContainer}>
-              <Text style={styles.mainTitle}>香港六合彩</Text>
+              <Text style={styles.mainTitle}>{t('appTitle')}</Text>
               <View style={styles.titleUnderline} />
-              <Text style={styles.subTitle}>TRADITIONAL FORTUNE GENERATOR</Text>
+              <Text style={styles.subTitle}>{t('appSubtitle')}</Text>
             </View>
 
             {/* Last Draw Result Card */}
@@ -164,9 +217,9 @@ export default function App() {
                 <View style={[styles.corner, styles.bl]} />
                 <View style={[styles.corner, styles.br]} />
 
-                <Text style={styles.cardTitle}>上期開獎結果</Text>
+                <Text style={styles.cardTitle}>{t('lastDraw')}</Text>
                 <Text style={styles.cardSubtitle}>
-                  第 {lastDraw.drawNumber} 期 · {formatDrawDate(lastDraw.drawDate)}
+                  {t('drawPrefix', { n: lastDraw.drawNumber })} · {formatDrawDate(lastDraw.drawDate)}
                 </Text>
 
                 <View style={styles.lastDrawBalls}>
@@ -186,7 +239,7 @@ export default function App() {
               <View style={[styles.corner, styles.bl]} />
               <View style={[styles.corner, styles.br]} />
 
-              <Text style={styles.jackpotLabel}>NEXT JACKPOT ESTIMATE</Text>
+              <Text style={styles.jackpotLabel}>{t('jackpotEstimate')}</Text>
               {drawLoading ? (
                 <ActivityIndicator color="#fcd34d" style={{ marginTop: 6 }} />
               ) : (
@@ -201,7 +254,16 @@ export default function App() {
             </View>
 
             {/* Generated Numbers Section */}
-            <Text style={styles.sectionLabel}>CURRENT GENERATED NUMBERS</Text>
+            <View style={styles.sectionRow}>
+              <Text style={styles.sectionLabel}>{t('currentGenerated')}</Text>
+              <TouchableOpacity onPress={handleAddFavorite} style={styles.starButton}>
+                <Ionicons
+                  name={isFavorited ? 'star' : 'star-outline'}
+                  size={22}
+                  color="#fcd34d"
+                />
+              </TouchableOpacity>
+            </View>
 
             <View style={styles.lanternArea}>
               {currentNumbers.length > 0 ? (
@@ -213,18 +275,82 @@ export default function App() {
               )}
             </View>
 
-            {/* Star Button */}
-            <TouchableOpacity onPress={handleAddFavorite} style={styles.starButton}>
-              <Ionicons
-                name={isFavorited ? 'star' : 'star-outline'}
-                size={26}
-                color="#fcd34d"
-              />
-            </TouchableOpacity>
-
             {/* Fortune Text */}
-            <Text style={styles.fortuneText}>誠心求籤，必有後福</Text>
+            <Text style={styles.fortuneText}>{t('fortuneText')}</Text>
             <Text style={styles.timeText}>Today, 12:47 PM</Text>
+
+            {/* Mode Toggle */}
+            <View style={styles.modeToggle}>
+              <TouchableOpacity
+                style={[styles.modeTab, mode === 'random' && styles.modeTabActive]}
+                onPress={() => setMode('random')}
+              >
+                <Text style={[styles.modeTabText, mode === 'random' && styles.modeTabTextActive]}>
+                  {t('modeRandom')}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modeTab, mode === 'zodiac' && styles.modeTabActive]}
+                onPress={() => setMode('zodiac')}
+              >
+                <Text style={[styles.modeTabText, mode === 'zodiac' && styles.modeTabTextActive]}>
+                  {t('modeFortune')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Zodiac Selector (visible in zodiac mode) */}
+            {mode === 'zodiac' && (
+              <View style={styles.zodiacCard}>
+                <Text style={styles.zodiacSectionLabel}>{t('yourZodiac')}</Text>
+                <View style={styles.zodiacGrid}>
+                  {ZODIAC_LIST.map((z) => (
+                    <TouchableOpacity
+                      key={z.key}
+                      style={[
+                        styles.zodiacItem,
+                        selectedZodiac === z.key && styles.zodiacItemActive,
+                      ]}
+                      onPress={() => handleSelectZodiac(z.key)}
+                    >
+                      <Text style={styles.zodiacEmoji}>{z.emoji}</Text>
+                      <Text style={[
+                        styles.zodiacLabel,
+                        selectedZodiac === z.key && styles.zodiacLabelActive,
+                      ]}>
+                        {t(zodiacTranslationKey(z.key))}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={[styles.zodiacSectionLabel, { marginTop: 14 }]}>{t('birthHour')}</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.hourScroll}
+                >
+                  {HOUR_LIST.map((h) => (
+                    <TouchableOpacity
+                      key={h.key}
+                      style={[
+                        styles.hourPill,
+                        selectedHour === h.key && styles.hourPillActive,
+                      ]}
+                      onPress={() => handleSelectHour(h.key)}
+                    >
+                      <Text style={[
+                        styles.hourPillText,
+                        selectedHour === h.key && styles.hourPillTextActive,
+                      ]}>
+                        {t(hourTranslationKey(h.key))}
+                      </Text>
+                      <Text style={styles.hourPillTime}>{h.time}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
 
             {/* Generate Button */}
             <TouchableOpacity
@@ -234,7 +360,7 @@ export default function App() {
             >
               <View style={styles.buttonInner}>
                 <MaterialCommunityIcons name="brush" size={22} color="#fcd34d" style={styles.brushIcon} />
-                <Text style={styles.buttonText}>求籤 (Generate)</Text>
+                <Text style={styles.buttonText}>{t('generate')}</Text>
               </View>
             </TouchableOpacity>
 
@@ -244,15 +370,15 @@ export default function App() {
           <View style={styles.bottomNav}>
             <TouchableOpacity style={styles.navItem} onPress={() => setHistoryVisible(true)}>
               <MaterialCommunityIcons name="history" size={24} color="#fcd34d" />
-              <Text style={styles.navText}>History</Text>
+              <Text style={styles.navText}>{t('history')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.navItem} onPress={() => setAnalysisVisible(true)}>
               <MaterialCommunityIcons name="chart-bell-curve" size={24} color="#fcd34d" />
-              <Text style={styles.navText}>Analysis</Text>
+              <Text style={styles.navText}>{t('analysis')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.navItem} onPress={() => setFavoriteVisible(true)}>
               <Ionicons name="star-outline" size={24} color="#fcd34d" />
-              <Text style={styles.navText}>Favorite</Text>
+              <Text style={styles.navText}>{t('favorite')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -277,7 +403,19 @@ export default function App() {
         onClose={() => setFavoriteVisible(false)}
         onRemove={handleRemoveFavorite}
       />
+      <SettingsModal
+        visible={settingsVisible}
+        onClose={() => setSettingsVisible(false)}
+      />
     </View>
+  );
+}
+
+export default function App() {
+  return (
+    <LanguageProvider>
+      <AppContent />
+    </LanguageProvider>
   );
 }
 
@@ -299,10 +437,18 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
 
+  /* Header */
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '90%',
+    marginBottom: 4,
+  },
+
   /* Title */
   titleContainer: {
     alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: 10,
   },
   mainTitle: {
     fontSize: 36,
@@ -334,7 +480,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderWidth: 1,
     borderColor: 'rgba(212, 175, 55, 0.4)',
-    marginBottom: 12,
+    marginBottom: 10,
     alignItems: 'center',
     position: 'relative',
   },
@@ -346,8 +492,8 @@ const styles = StyleSheet.create({
   cardSubtitle: {
     fontSize: 12,
     color: 'rgba(252, 211, 77, 0.6)',
-    marginTop: 4,
-    marginBottom: 10,
+    marginTop: 3,
+    marginBottom: 8,
   },
 
   /* Gold Corners */
@@ -402,13 +548,18 @@ const styles = StyleSheet.create({
   },
 
   /* Section Label */
+  sectionRow: {
+    width: '90%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+    marginBottom: 10,
+  },
   sectionLabel: {
     fontSize: 13,
     color: 'rgba(252, 211, 77, 0.8)',
     letterSpacing: 2,
     fontWeight: 'bold',
-    marginBottom: 10,
-    marginTop: 4,
   },
 
   /* Lantern Area */
@@ -429,15 +580,9 @@ const styles = StyleSheet.create({
 
   /* Star Button */
   starButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: 'rgba(212, 175, 55, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 10,
+    position: 'absolute',
+    right: 0,
+    padding: 4,
   },
 
   /* Fortune Text */
@@ -445,6 +590,7 @@ const styles = StyleSheet.create({
     color: '#fcd34d',
     fontSize: 18,
     fontWeight: 'bold',
+    marginTop: 10,
     marginBottom: 4,
   },
   timeText: {
@@ -455,6 +601,7 @@ const styles = StyleSheet.create({
 
   /* Generate Button */
   generateButton: {
+    marginTop: 10,
     width: '90%',
     height: 54,
     borderRadius: 27,
@@ -477,6 +624,113 @@ const styles = StyleSheet.create({
   },
   brushIcon: {
     marginRight: 10,
+  },
+
+  /* Mode Toggle */
+  modeToggle: {
+    flexDirection: 'row',
+    marginBottom: 12,
+    gap: 10,
+  },
+  modeTab: {
+    paddingHorizontal: 24,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.3)',
+  },
+  modeTabActive: {
+    backgroundColor: 'rgba(212, 175, 55, 0.2)',
+    borderColor: '#d4af37',
+  },
+  modeTabText: {
+    fontSize: 14,
+    color: 'rgba(252, 211, 77, 0.5)',
+    fontWeight: 'bold',
+  },
+  modeTabTextActive: {
+    color: '#fcd34d',
+  },
+
+  /* Zodiac Selector */
+  zodiacCard: {
+    width: '90%',
+    backgroundColor: 'rgba(69, 10, 10, 0.9)',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.4)',
+    marginBottom: 14,
+  },
+  zodiacSectionLabel: {
+    fontSize: 13,
+    color: 'rgba(252, 211, 77, 0.8)',
+    fontWeight: 'bold',
+    letterSpacing: 2,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  zodiacGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  zodiacItem: {
+    width: '14.5%',
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  zodiacItemActive: {
+    borderColor: '#d4af37',
+    backgroundColor: 'rgba(212, 175, 55, 0.15)',
+  },
+  zodiacEmoji: {
+    fontSize: 24,
+  },
+  zodiacLabel: {
+    fontSize: 10,
+    color: 'rgba(252, 211, 77, 0.6)',
+    marginTop: 2,
+  },
+  zodiacLabelActive: {
+    color: '#fcd34d',
+    fontWeight: 'bold',
+  },
+
+  /* Hour Selector */
+  hourScroll: {
+    paddingHorizontal: 4,
+    gap: 8,
+  },
+  hourPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.3)',
+    alignItems: 'center',
+  },
+  hourPillActive: {
+    borderColor: '#d4af37',
+    backgroundColor: 'rgba(212, 175, 55, 0.2)',
+  },
+  hourPillText: {
+    fontSize: 13,
+    color: 'rgba(252, 211, 77, 0.6)',
+    fontWeight: 'bold',
+  },
+  hourPillTextActive: {
+    color: '#fcd34d',
+  },
+  hourPillTime: {
+    fontSize: 10,
+    color: 'rgba(252, 211, 77, 0.4)',
+    marginTop: 2,
   },
 
   /* Fixed Bottom Nav */

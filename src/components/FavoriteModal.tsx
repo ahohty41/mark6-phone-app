@@ -10,6 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Ball } from './Ball';
 import { FavoriteEntry } from '../types/lottery';
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface FavoriteModalProps {
   visible: boolean;
@@ -47,7 +48,9 @@ const FavoriteRow = React.memo(
 );
 
 export const FavoriteModal: React.FC<FavoriteModalProps> = React.memo(
-  ({ visible, favorites, onClose, onRemove }) => (
+  ({ visible, favorites, onClose, onRemove }) => {
+    const { t } = useTranslation();
+    return (
     <Modal
       visible={visible}
       animationType="slide"
@@ -58,7 +61,7 @@ export const FavoriteModal: React.FC<FavoriteModalProps> = React.memo(
         <View style={styles.container}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>我的收藏</Text>
+            <Text style={styles.title}>{t('favoriteTitle')}</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Ionicons name="close" size={24} color="#fcd34d" />
             </TouchableOpacity>
@@ -68,7 +71,7 @@ export const FavoriteModal: React.FC<FavoriteModalProps> = React.memo(
 
           {favorites.length === 0 ? (
             <View style={styles.empty}>
-              <Text style={styles.emptyText}>尚無收藏</Text>
+              <Text style={styles.emptyText}>{t('noFavorite')}</Text>
             </View>
           ) : (
             <FlatList
@@ -90,7 +93,8 @@ export const FavoriteModal: React.FC<FavoriteModalProps> = React.memo(
         </View>
       </View>
     </Modal>
-  ),
+    );
+  },
 );
 
 const styles = StyleSheet.create({

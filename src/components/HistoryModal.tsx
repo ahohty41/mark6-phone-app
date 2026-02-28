@@ -10,6 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Ball } from './Ball';
 import { HistoryEntry } from '../types/lottery';
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface HistoryModalProps {
   visible: boolean;
@@ -53,7 +54,9 @@ const HistoryRow = React.memo(
 );
 
 export const HistoryModal: React.FC<HistoryModalProps> = React.memo(
-  ({ visible, history, favoriteKeys, onClose, onToggleFavorite }) => (
+  ({ visible, history, favoriteKeys, onClose, onToggleFavorite }) => {
+    const { t } = useTranslation();
+    return (
     <Modal
       visible={visible}
       animationType="slide"
@@ -64,7 +67,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = React.memo(
         <View style={styles.container}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>歷史記錄</Text>
+            <Text style={styles.title}>{t('historyTitle')}</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Ionicons name="close" size={24} color="#fcd34d" />
             </TouchableOpacity>
@@ -74,7 +77,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = React.memo(
 
           {history.length === 0 ? (
             <View style={styles.empty}>
-              <Text style={styles.emptyText}>尚無記錄，請先求籤</Text>
+              <Text style={styles.emptyText}>{t('noHistory')}</Text>
             </View>
           ) : (
             <FlatList
@@ -101,7 +104,8 @@ export const HistoryModal: React.FC<HistoryModalProps> = React.memo(
         </View>
       </View>
     </Modal>
-  ),
+    );
+  },
 );
 
 const styles = StyleSheet.create({

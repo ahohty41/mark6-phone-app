@@ -13,6 +13,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Ball } from './Ball';
 import { FrequencyChart } from './FrequencyChart';
 import { DrawResult, AnalyseResponse } from '../types/lottery';
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface AnalysisModalProps {
   visible: boolean;
@@ -27,10 +28,12 @@ const formatDate = (dateStr: string): string => {
   return dateStr.split(/[T+]/)[0];
 };
 
-const DrawRow = React.memo(({ item }: { item: DrawResult }) => (
+const DrawRow = React.memo(({ item }: { item: DrawResult }) => {
+  const { t } = useTranslation();
+  return (
   <View style={styles.row}>
     <View style={styles.rowHeader}>
-      <Text style={styles.drawNumber}>第 {item.drawNumber} 期</Text>
+      <Text style={styles.drawNumber}>{t('drawPrefix', { n: item.drawNumber })}</Text>
       <Text style={styles.drawDate}>{formatDate(item.drawDate)}</Text>
     </View>
     <View style={styles.ballRow}>
@@ -41,10 +44,12 @@ const DrawRow = React.memo(({ item }: { item: DrawResult }) => (
       <Ball key={`extra-${item.extraNumber}`} number={Number(item.extraNumber)} size="small" />
     </View>
   </View>
-));
+  );
+});
 
 export const AnalysisModal: React.FC<AnalysisModalProps> = React.memo(
   ({ visible, apiBaseUrl, onClose }) => {
+    const { t } = useTranslation();
     const [draws, setDraws] = useState<DrawResult[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -60,14 +65,14 @@ export const AnalysisModal: React.FC<AnalysisModalProps> = React.memo(
         if (json.success && json.data) {
           setDraws(json.data);
         } else {
-          setError(json.error || '無法取得資料');
+          setError(json.error || t('fetchError'));
         }
       } catch {
-        setError('網絡錯誤，請檢查連線');
+        setError(t('networkError'));
       } finally {
         setLoading(false);
       }
-    }, [apiBaseUrl]);
+    }, [apiBaseUrl, t]);
 
     useEffect(() => {
       if (visible) fetchData(count);
@@ -87,7 +92,7 @@ export const AnalysisModal: React.FC<AnalysisModalProps> = React.memo(
         return (
           <View style={styles.center}>
             <ActivityIndicator color="#fcd34d" size="large" />
-            <Text style={styles.loadingText}>正在載入開獎記錄...</Text>
+            <Text style={styles.loadingText}>{t('loading')}</Text>
           </View>
         );
       }
@@ -102,7 +107,7 @@ export const AnalysisModal: React.FC<AnalysisModalProps> = React.memo(
       if (draws.length === 0) {
         return (
           <View style={styles.center}>
-            <Text style={styles.emptyText}>暫無開獎記錄</Text>
+            <Text style={styles.emptyText}>{t('noData')}</Text>
           </View>
         );
       }
@@ -128,7 +133,7 @@ export const AnalysisModal: React.FC<AnalysisModalProps> = React.memo(
           <View style={styles.container}>
             {/* Header */}
             <View style={styles.header}>
-              <Text style={styles.title}>開獎記錄</Text>
+              <Text style={styles.title}>{t('analysisTitle')}</Text>
               <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                 <Ionicons name="close" size={24} color="#fcd34d" />
               </TouchableOpacity>
@@ -143,7 +148,7 @@ export const AnalysisModal: React.FC<AnalysisModalProps> = React.memo(
                   onPress={() => handleCountChange(n)}
                 >
                   <Text style={[styles.tabText, count === n && styles.tabTextActive]}>
-                    最近 {n} 期
+                    {t('recentDraws', { n })}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -163,7 +168,7 @@ export const AnalysisModal: React.FC<AnalysisModalProps> = React.memo(
                 style={{ marginRight: 6 }}
               />
               <Text style={[styles.distributionText, showChart && styles.distributionTextActive]}>
-                號碼分佈
+                {t('distribution')}
               </Text>
             </TouchableOpacity>
 

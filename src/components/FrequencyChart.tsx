@@ -3,6 +3,7 @@ import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { DrawResult } from '../types/lottery';
 import { getBallColor } from '../utils/lotteryUtils';
 import { Ball } from './Ball';
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface FrequencyChartProps {
   draws: DrawResult[];
@@ -10,14 +11,15 @@ interface FrequencyChartProps {
 
 const MAX_BAR_HEIGHT = 150;
 
-const COLOR_MAP: { label: string; color: string; nums: number[] }[] = [
-  { label: '紅波', color: '#FF3B30', nums: [1, 2, 7, 8, 12, 13, 18, 19, 23, 24, 29, 30, 34, 35, 40, 45, 46] },
-  { label: '藍波', color: '#007AFF', nums: [3, 4, 9, 10, 14, 15, 20, 25, 26, 31, 36, 37, 41, 42, 47, 48] },
-  { label: '綠波', color: '#34C759', nums: [5, 6, 11, 16, 17, 21, 22, 27, 28, 32, 33, 38, 39, 43, 44, 49] },
+const COLOR_MAP: { key: string; color: string; nums: number[] }[] = [
+  { key: 'redWave', color: '#FF3B30', nums: [1, 2, 7, 8, 12, 13, 18, 19, 23, 24, 29, 30, 34, 35, 40, 45, 46] },
+  { key: 'blueWave', color: '#007AFF', nums: [3, 4, 9, 10, 14, 15, 20, 25, 26, 31, 36, 37, 41, 42, 47, 48] },
+  { key: 'greenWave', color: '#34C759', nums: [5, 6, 11, 16, 17, 21, 22, 27, 28, 32, 33, 38, 39, 43, 44, 49] },
 ];
 
 export const FrequencyChart: React.FC<FrequencyChartProps> = React.memo(
   ({ draws }) => {
+    const { t } = useTranslation();
     const frequencies = useMemo(() => {
       const counts = new Array(50).fill(0);
       for (const draw of draws) {
@@ -43,17 +45,17 @@ export const FrequencyChart: React.FC<FrequencyChartProps> = React.memo(
 
     const colorStats = useMemo(() => {
       const totalBalls = draws.length * 7; // 6 numbers + 1 extra per draw
-      return COLOR_MAP.map(({ label, color, nums }) => {
+      return COLOR_MAP.map(({ key, color, nums }) => {
         const count = nums.reduce((sum, n) => sum + frequencies[n], 0);
         const pct = totalBalls > 0 ? (count / totalBalls) * 100 : 0;
-        return { label, color, count, pct };
+        return { key, color, count, pct };
       });
     }, [frequencies, draws.length]);
 
     return (
       <View>
         {/* Bar Chart */}
-        <Text style={styles.sectionTitle}>號碼頻率分佈</Text>
+        <Text style={styles.sectionTitle}>{t('frequencyTitle')}</Text>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -85,7 +87,7 @@ export const FrequencyChart: React.FC<FrequencyChartProps> = React.memo(
 
         {/* Top 10 */}
         <View style={styles.divider} />
-        <Text style={styles.sectionTitle}>最熱門 10 個號碼</Text>
+        <Text style={styles.sectionTitle}>{t('hotNumbers')}</Text>
         <View style={styles.top10Grid}>
           {top10.map(({ num, count }, index) => (
             <View key={num} style={styles.top10Item}>
@@ -93,21 +95,21 @@ export const FrequencyChart: React.FC<FrequencyChartProps> = React.memo(
               <View style={styles.top10BallWrapper}>
                 <Ball number={num} />
               </View>
-              <Text style={styles.top10Count}>{count} 次</Text>
+              <Text style={styles.top10Count}>{t('times', { count })}</Text>
             </View>
           ))}
         </View>
 
         {/* Color Stats */}
         <View style={styles.divider} />
-        <Text style={styles.sectionTitle}>色波統計</Text>
+        <Text style={styles.sectionTitle}>{t('colorStats')}</Text>
         <View style={styles.colorStatsContainer}>
-          {colorStats.map(({ label, color, count, pct }) => (
-            <View key={label} style={styles.colorRow}>
+          {colorStats.map(({ key, color, count, pct }) => (
+            <View key={key} style={styles.colorRow}>
               <View style={styles.colorLabelRow}>
                 <View style={[styles.colorDot, { backgroundColor: color }]} />
-                <Text style={styles.colorLabel}>{label}</Text>
-                <Text style={styles.colorCount}>{count} 次</Text>
+                <Text style={styles.colorLabel}>{t(key)}</Text>
+                <Text style={styles.colorCount}>{t('times', { count })}</Text>
                 <Text style={styles.colorPct}>{pct.toFixed(1)}%</Text>
               </View>
               <View style={styles.pctBarTrack}>
