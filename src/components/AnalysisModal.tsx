@@ -14,6 +14,7 @@ import { Ball } from './Ball';
 import { FrequencyChart } from './FrequencyChart';
 import { DrawResult, AnalyseResponse } from '../types/lottery';
 import { useTranslation } from '../i18n/LanguageContext';
+import { getCache, setCache } from '../utils/cacheUtils';
 
 interface AnalysisModalProps {
   visible: boolean;
@@ -57,6 +58,12 @@ export const AnalysisModal: React.FC<AnalysisModalProps> = React.memo(
     const [showChart, setShowChart] = useState(false);
 
     const fetchData = useCallback(async (n: DrawCount) => {
+      const cacheKey = `analyse_${n}`;
+      const cached = await getCache<DrawResult[]>(cacheKey);
+      if (cached) {
+        setDraws(cached);
+        return;
+      }
       setLoading(true);
       setError(null);
       try {
@@ -64,6 +71,7 @@ export const AnalysisModal: React.FC<AnalysisModalProps> = React.memo(
         const json: AnalyseResponse = await response.json();
         if (json.success && json.data) {
           setDraws(json.data);
+          setCache(cacheKey, json.data);
         } else {
           setError(json.error || t('fetchError'));
         }

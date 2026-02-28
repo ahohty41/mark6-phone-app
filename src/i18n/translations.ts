@@ -60,6 +60,25 @@ type TranslationKeys = {
   hourYou: string;
   hourXu: string;
   hourHai: string;
+  modeBanker: string;
+  modeMultiple: string;
+  bankerCount: string;
+  playerCount: string;
+  totalCount: string;
+  redBalls: string;
+  blueBalls: string;
+  greenBalls: string;
+  banker: string;
+  player: string;
+  colorSelection: string;
+  dividendPerUnit: string;
+  winningUnits: string;
+  nextDrawInfo: string;
+  noWinner: string;
+  useColorFilter: string;
+  disclaimerTitle: string;
+  acceptContinue: string;
+  scrollToAccept: string;
 };
 
 export const translations: Record<Lang, TranslationKeys> = {
@@ -123,6 +142,25 @@ export const translations: Record<Lang, TranslationKeys> = {
     hourYou: '酉時',
     hourXu: '戌時',
     hourHai: '亥時',
+    modeBanker: '膽拖',
+    modeMultiple: '複式',
+    bankerCount: '膽碼數量',
+    playerCount: '腳碼數量',
+    totalCount: '號碼數量',
+    redBalls: '紅',
+    blueBalls: '藍',
+    greenBalls: '綠',
+    banker: '膽',
+    player: '拖',
+    colorSelection: '色波選擇',
+    dividendPerUnit: '每注獎金',
+    winningUnits: '中獎注數',
+    nextDrawInfo: '下期搞珠',
+    noWinner: '無人中獎',
+    useColorFilter: '色波篩選',
+    disclaimerTitle: '免責聲明 / Disclaimer',
+    acceptContinue: '接受並繼續 / Accept & Continue',
+    scrollToAccept: '請捲動至底部以啟用按鈕',
   },
   en: {
     appTitle: 'Mark Six',
@@ -184,5 +222,24 @@ export const translations: Record<Lang, TranslationKeys> = {
     hourYou: 'You',
     hourXu: 'Xu',
     hourHai: 'Hai',
+    modeBanker: 'Banker',
+    modeMultiple: 'Multiple',
+    bankerCount: 'Banker Count',
+    playerCount: 'Player Count',
+    totalCount: 'Total Count',
+    redBalls: 'Red',
+    blueBalls: 'Blue',
+    greenBalls: 'Green',
+    banker: 'Banker',
+    player: 'Player',
+    colorSelection: 'Color Selection',
+    dividendPerUnit: 'Dividend',
+    winningUnits: 'Winners',
+    nextDrawInfo: 'Next Draw',
+    noWinner: 'No Winner',
+    useColorFilter: 'Color Filter',
+    disclaimerTitle: 'Disclaimer',
+    acceptContinue: 'Accept & Continue',
+    scrollToAccept: 'Please scroll to the bottom to enable the button',
   },
 };

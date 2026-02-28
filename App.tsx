@@ -10,14 +10,18 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ball } from './src/components/Ball';
-import { generateMarkSixNumbers } from './src/utils/lotteryUtils';
+import { generateMarkSixNumbers, generateBankerNumbers, generateMultipleNumbers, distributeColors, RED_BALLS, BLUE_BALLS, GREEN_BALLS } from './src/utils/lotteryUtils';
 import { generateZodiacNumbers, ZODIAC_LIST, HOUR_LIST, Zodiac, ChineseHour } from './src/utils/zodiacUtils';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { ApiResponse, HistoryEntry, MarkSixResult, FavoriteEntry } from './src/types/lottery';
+import { ApiResponse, HistoryEntry, MarkSixResult, FavoriteEntry, BankerConfig, MultipleConfig, ColorDistribution } from './src/types/lottery';
+import { getCache, setCache } from './src/utils/cacheUtils';
+import { CountStepper } from './src/components/CountStepper';
+import { ColorStepper } from './src/components/ColorStepper';
 import { HistoryModal } from './src/components/HistoryModal';
 import { AnalysisModal } from './src/components/AnalysisModal';
 import { FavoriteModal } from './src/components/FavoriteModal';
 import { SettingsModal } from './src/components/SettingsModal';
+import { DisclaimerModal } from './src/components/DisclaimerModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LanguageProvider, useTranslation } from './src/i18n/LanguageContext';
 
@@ -44,18 +48,33 @@ function AppContent() {
   const [lastDraw, setLastDraw] = useState<MarkSixResult | null>(null);
   const [jackpot, setJackpot] = useState<number | null>(null);
   const [drawLoading, setDrawLoading] = useState(true);
-  const [mode, setMode] = useState<'random' | 'zodiac'>('random');
+  const [mode, setMode] = useState<'random' | 'zodiac' | 'banker' | 'multiple'>('random');
   const [selectedZodiac, setSelectedZodiac] = useState<Zodiac>('rat');
   const [selectedHour, setSelectedHour] = useState<ChineseHour>('zi');
+  const [bankerConfig, setBankerConfig] = useState<BankerConfig>({
+    bankerCount: 4,
+    bankerColors: distributeColors(4),
+    playerCount: 3,
+    playerColors: distributeColors(3),
+  });
+  const [multipleConfig, setMultipleConfig] = useState<MultipleConfig>({
+    totalCount: 8,
+    colors: distributeColors(8),
+  });
+  const [bankerResult, setBankerResult] = useState<{ bankers: number[]; players: number[] } | null>(null);
+  const [useColorFilter, setUseColorFilter] = useState(false);
+  const [disclaimerVisible, setDisclaimerVisible] = useState(true);
 
   useEffect(() => {
     const loadStored = async () => {
       try {
-        const [storedFav, storedZodiac, storedHour] = await Promise.all([
+        const [storedFav, storedZodiac, storedHour, disclaimerAccepted] = await Promise.all([
           AsyncStorage.getItem('favorites'),
           AsyncStorage.getItem('zodiac'),
           AsyncStorage.getItem('hour'),
+          AsyncStorage.getItem('disclaimerAccepted'),
         ]);
+        if (disclaimerAccepted === 'true') setDisclaimerVisible(false);
         if (storedFav) {
           const parsed: FavoriteEntry[] = JSON.parse(storedFav, (key, value) =>
             key === 'timestamp' ? new Date(value) : value,
@@ -72,11 +91,21 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
-    AsyncStorage.setItem('favorites', JSON.stringify(favorites)).catch(() => {});
+    AsyncStorage.setItem('favorites', JSON.stringify(favorites)).catch(() => { });
   }, [favorites]);
 
   useEffect(() => {
     const fetchDrawData = async () => {
+      const cacheKey = 'lastDraw';
+      const cached = await getCache<MarkSixResult>(cacheKey);
+      if (cached) {
+        setLastDraw(cached);
+        if (cached.nextDraw?.estimatedJackpot) {
+          setJackpot(cached.nextDraw.estimatedJackpot);
+        }
+        setDrawLoading(false);
+        return;
+      }
       try {
         const response = await fetch(API_URL);
         const json: ApiResponse = await response.json();
@@ -85,6 +114,7 @@ function AppContent() {
           if (json.data.nextDraw?.estimatedJackpot) {
             setJackpot(json.data.nextDraw.estimatedJackpot);
           }
+          setCache(cacheKey, json.data);
         }
       } catch {
         // Silently fail
@@ -95,30 +125,51 @@ function AppContent() {
     fetchDrawData();
   }, []);
 
+  const handleAcceptDisclaimer = useCallback(() => {
+    setDisclaimerVisible(false);
+    AsyncStorage.setItem('disclaimerAccepted', 'true').catch(() => { });
+  }, []);
+
   const handleGenerate = useCallback(() => {
-    const newNumbers = mode === 'zodiac'
-      ? generateZodiacNumbers(selectedZodiac, selectedHour)
-      : generateMarkSixNumbers();
+    let newNumbers: number[];
+    let newBankerResult: { bankers: number[]; players: number[] } | null = null;
+    let entryBankerCount: number | undefined;
+
+    if (mode === 'banker') {
+      const result = generateBankerNumbers(bankerConfig, useColorFilter);
+      newBankerResult = result;
+      newNumbers = [...result.bankers, ...result.players];
+      entryBankerCount = result.bankers.length;
+    } else if (mode === 'multiple') {
+      newNumbers = generateMultipleNumbers(multipleConfig, useColorFilter);
+    } else if (mode === 'zodiac') {
+      newNumbers = generateZodiacNumbers(selectedZodiac, selectedHour);
+    } else {
+      newNumbers = generateMarkSixNumbers();
+    }
+
     setCurrentNumbers(newNumbers);
+    setBankerResult(newBankerResult);
     setHistory((prev) => {
       const entry: HistoryEntry = {
         id: Date.now(),
         numbers: newNumbers,
         timestamp: new Date(),
+        bankerCount: entryBankerCount,
       };
       const updated = [entry, ...prev];
       return updated.length > 10 ? updated.slice(0, 10) : updated;
     });
-  }, [mode, selectedZodiac, selectedHour]);
+  }, [mode, selectedZodiac, selectedHour, bankerConfig, multipleConfig, useColorFilter]);
 
   const handleSelectZodiac = useCallback((z: Zodiac) => {
     setSelectedZodiac(z);
-    AsyncStorage.setItem('zodiac', z).catch(() => {});
+    AsyncStorage.setItem('zodiac', z).catch(() => { });
   }, []);
 
   const handleSelectHour = useCallback((h: ChineseHour) => {
     setSelectedHour(h);
-    AsyncStorage.setItem('hour', h).catch(() => {});
+    AsyncStorage.setItem('hour', h).catch(() => { });
   }, []);
 
   const zodiacTranslationKey = useCallback((key: string): string => {
@@ -138,6 +189,88 @@ function AppContent() {
     };
     return map[key] || key;
   }, []);
+
+  const updateBankerCount = useCallback((field: 'bankerCount' | 'playerCount', value: number) => {
+    setBankerConfig((prev) => {
+      const otherField = field === 'bankerCount' ? 'playerCount' : 'bankerCount';
+      const otherColorsField = field === 'bankerCount' ? 'playerColors' : 'bankerColors';
+      let otherValue = prev[otherField];
+      // Ensure banker + player >= 7
+      if (value + otherValue < 7) {
+        otherValue = 7 - value;
+      }
+      return {
+        ...prev,
+        [field]: value,
+        [field === 'bankerCount' ? 'bankerColors' : 'playerColors']: distributeColors(value),
+        [otherField]: otherValue,
+        [otherColorsField]: otherValue !== prev[otherField] ? distributeColors(otherValue) : prev[otherColorsField],
+      };
+    });
+  }, []);
+
+  const updateBankerColor = useCallback(
+    (group: 'bankerColors' | 'playerColors', colorKey: keyof ColorDistribution, value: number) => {
+      setBankerConfig((prev) => {
+        const colors = { ...prev[group], [colorKey]: value };
+        const total = group === 'bankerColors' ? prev.bankerCount : prev.playerCount;
+        const otherKeys = (['red', 'blue', 'green'] as const).filter((k) => k !== colorKey);
+        const remaining = total - value;
+        const pools = { red: RED_BALLS.length, blue: BLUE_BALLS.length, green: GREEN_BALLS.length };
+
+        // Redistribute remaining among other keys
+        let leftover = remaining;
+        for (const k of otherKeys) {
+          const maxForK = Math.min(pools[k], leftover);
+          colors[k] = Math.min(colors[k], maxForK);
+          leftover -= colors[k];
+        }
+        // If still leftover, assign to first available
+        if (leftover > 0) {
+          for (const k of otherKeys) {
+            const canAdd = Math.min(pools[k] - colors[k], leftover);
+            colors[k] += canAdd;
+            leftover -= canAdd;
+          }
+        }
+
+        return { ...prev, [group]: colors };
+      });
+    },
+    [],
+  );
+
+  const updateMultipleCount = useCallback((value: number) => {
+    setMultipleConfig({ totalCount: value, colors: distributeColors(value) });
+  }, []);
+
+  const updateMultipleColor = useCallback(
+    (colorKey: keyof ColorDistribution, value: number) => {
+      setMultipleConfig((prev) => {
+        const colors = { ...prev.colors, [colorKey]: value };
+        const otherKeys = (['red', 'blue', 'green'] as const).filter((k) => k !== colorKey);
+        const remaining = prev.totalCount - value;
+        const pools = { red: RED_BALLS.length, blue: BLUE_BALLS.length, green: GREEN_BALLS.length };
+
+        let leftover = remaining;
+        for (const k of otherKeys) {
+          const maxForK = Math.min(pools[k], leftover);
+          colors[k] = Math.min(colors[k], maxForK);
+          leftover -= colors[k];
+        }
+        if (leftover > 0) {
+          for (const k of otherKeys) {
+            const canAdd = Math.min(pools[k] - colors[k], leftover);
+            colors[k] += canAdd;
+            leftover -= canAdd;
+          }
+        }
+
+        return { ...prev, colors };
+      });
+    },
+    [],
+  );
 
   const isFavorited = useMemo(() => {
     if (currentNumbers.length === 0) return false;
@@ -229,6 +362,27 @@ function AppContent() {
                   <Text style={styles.lastDrawPlus}>+</Text>
                   <Ball key="extra" number={Number(lastDraw.extraNumber)} size="small" />
                 </View>
+
+                {lastDraw.payoutDetails.length > 0 && (
+                  <View style={styles.payoutTable}>
+                    <View style={styles.payoutRow}>
+                      <Text style={[styles.payoutLabel, { flex: 2 }]} />
+                      <Text style={[styles.payoutLabel, { flex: 2, textAlign: 'right' }]}>{t('dividendPerUnit')}</Text>
+                      <Text style={[styles.payoutLabel, { flex: 2, textAlign: 'right' }]}>{t('winningUnits')}</Text>
+                    </View>
+                    {lastDraw.payoutDetails.slice(0, 3).map((p, i) => (
+                      <View key={i} style={styles.payoutRow}>
+                        <Text style={[styles.payoutLabel, { flex: 2 }]}>{p.prizeLevel}</Text>
+                        <Text style={[styles.payoutValue, { flex: 2, textAlign: 'right' }]}>
+                          ${formatJackpot(p.dividend)}
+                        </Text>
+                        <Text style={[styles.payoutValue, { flex: 2, textAlign: 'right' }]}>
+                          {p.winningUnits === 0 ? t('noWinner') : p.winningUnits.toLocaleString()}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
             ) : null}
 
@@ -243,60 +397,97 @@ function AppContent() {
               {drawLoading ? (
                 <ActivityIndicator color="#fcd34d" style={{ marginTop: 6 }} />
               ) : (
-                <View style={styles.jackpotRow}>
-                  <Text style={styles.jackpotIcon}>💰</Text>
-                  <Text style={styles.jackpotValue}>
-                    <Text style={styles.goldSymbol}>$</Text>{' '}
-                    {jackpot ? formatJackpot(jackpot) : '---'}
-                  </Text>
-                </View>
+                <>
+                  <View style={styles.jackpotRow}>
+                    <Text style={styles.jackpotIcon}>💰</Text>
+                    <Text style={styles.jackpotValue}>
+                      <Text style={styles.goldSymbol}>$</Text>{' '}
+                      {jackpot ? formatJackpot(jackpot) : '---'}
+                    </Text>
+                  </View>
+                  {lastDraw?.nextDraw && (
+                    <Text style={styles.nextDrawInfoText}>
+                      {t('drawPrefix', { n: lastDraw.nextDraw.drawNumber })} · {formatDrawDate(lastDraw.nextDraw.drawDate)}
+                    </Text>
+                  )}
+                </>
               )}
             </View>
 
             {/* Generated Numbers Section */}
-            <View style={styles.sectionRow}>
-              <Text style={styles.sectionLabel}>{t('currentGenerated')}</Text>
-              <TouchableOpacity onPress={handleAddFavorite} style={styles.starButton}>
-                <Ionicons
-                  name={isFavorited ? 'star' : 'star-outline'}
-                  size={22}
-                  color="#fcd34d"
-                />
-              </TouchableOpacity>
-            </View>
+            {currentNumbers.length > 0 && (
+              <View style={styles.sectionRow}>
+                <Text style={styles.sectionLabel}>{t('currentGenerated')}</Text>
+                <TouchableOpacity onPress={handleAddFavorite} style={styles.starButton}>
+                  <Ionicons
+                    name={isFavorited ? 'star' : 'star-outline'}
+                    size={22}
+                    color="#fcd34d"
+                  />
+                </TouchableOpacity>
+              </View>
+            )}
 
-            <View style={styles.lanternArea}>
-              {currentNumbers.length > 0 ? (
-                <View style={styles.lanternGrid}>
-                  {ballList}
+            {currentNumbers.length > 0 && (
+              <>
+                <View style={styles.lanternArea}>
+                  {mode === 'banker' && bankerResult ? (
+                    <View style={styles.bankerDisplay}>
+                      <View style={styles.bankerGroup}>
+                        <Text style={styles.bankerGroupLabel}>{t('banker')}</Text>
+                        <View style={styles.bankerBallRow}>
+                          {bankerResult.bankers.map((num) => (
+                            <Ball key={`b-${num}`} number={num} />
+                          ))}
+                        </View>
+                      </View>
+                      <View style={styles.bankerDivider} />
+                      <View style={styles.bankerGroup}>
+                        <Text style={styles.bankerGroupLabel}>{t('player')}</Text>
+                        <View style={styles.bankerBallRow}>
+                          {bankerResult.players.map((num) => (
+                            <Ball key={`p-${num}`} number={num} />
+                          ))}
+                        </View>
+                      </View>
+                    </View>
+                  ) : currentNumbers.length > 6 ? (
+                    <View style={styles.multipleGrid}>
+                      {currentNumbers.map((num) => (
+                        <Ball key={num} number={num} />
+                      ))}
+                    </View>
+                  ) : (
+                    <View style={styles.lanternGrid}>
+                      {ballList}
+                    </View>
+                  )}
                 </View>
-              ) : (
-                <View style={styles.placeholderBalls} />
-              )}
-            </View>
+
+              </>
+            )}
 
             {/* Fortune Text */}
             <Text style={styles.fortuneText}>{t('fortuneText')}</Text>
-            <Text style={styles.timeText}>Today, 12:47 PM</Text>
 
             {/* Mode Toggle */}
             <View style={styles.modeToggle}>
-              <TouchableOpacity
-                style={[styles.modeTab, mode === 'random' && styles.modeTabActive]}
-                onPress={() => setMode('random')}
-              >
-                <Text style={[styles.modeTabText, mode === 'random' && styles.modeTabTextActive]}>
-                  {t('modeRandom')}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modeTab, mode === 'zodiac' && styles.modeTabActive]}
-                onPress={() => setMode('zodiac')}
-              >
-                <Text style={[styles.modeTabText, mode === 'zodiac' && styles.modeTabTextActive]}>
-                  {t('modeFortune')}
-                </Text>
-              </TouchableOpacity>
+              {([
+                { key: 'random' as const, label: t('modeRandom') },
+                { key: 'zodiac' as const, label: t('modeFortune') },
+                { key: 'banker' as const, label: t('modeBanker') },
+                { key: 'multiple' as const, label: t('modeMultiple') },
+              ]).map((m) => (
+                <TouchableOpacity
+                  key={m.key}
+                  style={[styles.modeTab, mode === m.key && styles.modeTabActive]}
+                  onPress={() => setMode(m.key)}
+                >
+                  <Text style={[styles.modeTabText, mode === m.key && styles.modeTabTextActive]}>
+                    {m.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
 
             {/* Zodiac Selector (visible in zodiac mode) */}
@@ -349,6 +540,147 @@ function AppContent() {
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
+              </View>
+            )}
+
+            {/* Banker Mode Panel */}
+            {mode === 'banker' && (
+              <View style={styles.zodiacCard}>
+                <Text style={styles.zodiacSectionLabel}>{t('banker')}</Text>
+                <CountStepper
+                  label={t('bankerCount')}
+                  value={bankerConfig.bankerCount}
+                  min={Math.max(1, 7 - bankerConfig.playerCount)}
+                  max={Math.min(5, 49 - bankerConfig.playerCount)}
+                  onChange={(v) => updateBankerCount('bankerCount', v)}
+                />
+
+                <View style={styles.bankerSectionDivider} />
+
+                <Text style={styles.zodiacSectionLabel}>{t('player')}</Text>
+                <CountStepper
+                  label={t('playerCount')}
+                  value={bankerConfig.playerCount}
+                  min={Math.max(1, 7 - bankerConfig.bankerCount)}
+                  max={49 - bankerConfig.bankerCount}
+                  onChange={(v) => updateBankerCount('playerCount', v)}
+                />
+
+                <View style={styles.bankerSectionDivider} />
+
+                <TouchableOpacity
+                  style={styles.colorFilterToggle}
+                  onPress={() => setUseColorFilter((prev) => !prev)}
+                >
+                  <Text style={styles.colorFilterLabel}>{t('useColorFilter')}</Text>
+                  <View style={[styles.colorFilterSwitch, useColorFilter && styles.colorFilterSwitchOn]}>
+                    <View style={[styles.colorFilterKnob, useColorFilter && styles.colorFilterKnobOn]} />
+                  </View>
+                </TouchableOpacity>
+
+                {useColorFilter && (
+                  <>
+                    <Text style={[styles.zodiacSectionLabel, { marginTop: 10 }]}>{t('banker')}</Text>
+                    <ColorStepper
+                      label={t('redBalls')}
+                      color="#FF3B30"
+                      value={bankerConfig.bankerColors.red}
+                      max={Math.min(RED_BALLS.length, bankerConfig.bankerCount)}
+                      onChange={(v) => updateBankerColor('bankerColors', 'red', v)}
+                    />
+                    <ColorStepper
+                      label={t('blueBalls')}
+                      color="#007AFF"
+                      value={bankerConfig.bankerColors.blue}
+                      max={Math.min(BLUE_BALLS.length, bankerConfig.bankerCount)}
+                      onChange={(v) => updateBankerColor('bankerColors', 'blue', v)}
+                    />
+                    <ColorStepper
+                      label={t('greenBalls')}
+                      color="#34C759"
+                      value={bankerConfig.bankerColors.green}
+                      max={Math.min(GREEN_BALLS.length, bankerConfig.bankerCount)}
+                      onChange={(v) => updateBankerColor('bankerColors', 'green', v)}
+                    />
+
+                    <View style={styles.bankerSectionDivider} />
+
+                    <Text style={styles.zodiacSectionLabel}>{t('player')}</Text>
+                    <ColorStepper
+                      label={t('redBalls')}
+                      color="#FF3B30"
+                      value={bankerConfig.playerColors.red}
+                      max={Math.min(RED_BALLS.length, bankerConfig.playerCount)}
+                      onChange={(v) => updateBankerColor('playerColors', 'red', v)}
+                    />
+                    <ColorStepper
+                      label={t('blueBalls')}
+                      color="#007AFF"
+                      value={bankerConfig.playerColors.blue}
+                      max={Math.min(BLUE_BALLS.length, bankerConfig.playerCount)}
+                      onChange={(v) => updateBankerColor('playerColors', 'blue', v)}
+                    />
+                    <ColorStepper
+                      label={t('greenBalls')}
+                      color="#34C759"
+                      value={bankerConfig.playerColors.green}
+                      max={Math.min(GREEN_BALLS.length, bankerConfig.playerCount)}
+                      onChange={(v) => updateBankerColor('playerColors', 'green', v)}
+                    />
+                  </>
+                )}
+              </View>
+            )}
+
+            {/* Multiple Mode Panel */}
+            {mode === 'multiple' && (
+              <View style={styles.zodiacCard}>
+                <Text style={styles.zodiacSectionLabel}>{t('totalCount')}</Text>
+                <CountStepper
+                  label={t('totalCount')}
+                  value={multipleConfig.totalCount}
+                  min={7}
+                  max={49}
+                  onChange={updateMultipleCount}
+                />
+
+                <View style={styles.bankerSectionDivider} />
+
+                <TouchableOpacity
+                  style={styles.colorFilterToggle}
+                  onPress={() => setUseColorFilter((prev) => !prev)}
+                >
+                  <Text style={styles.colorFilterLabel}>{t('useColorFilter')}</Text>
+                  <View style={[styles.colorFilterSwitch, useColorFilter && styles.colorFilterSwitchOn]}>
+                    <View style={[styles.colorFilterKnob, useColorFilter && styles.colorFilterKnobOn]} />
+                  </View>
+                </TouchableOpacity>
+
+                {useColorFilter && (
+                  <>
+                    <ColorStepper
+                      label={t('redBalls')}
+                      color="#FF3B30"
+                      value={multipleConfig.colors.red}
+                      max={Math.min(RED_BALLS.length, multipleConfig.totalCount)}
+                      onChange={(v) => updateMultipleColor('red', v)}
+                    />
+                    <ColorStepper
+                      label={t('blueBalls')}
+                      color="#007AFF"
+                      value={multipleConfig.colors.blue}
+                      max={Math.min(BLUE_BALLS.length, multipleConfig.totalCount)}
+                      onChange={(v) => updateMultipleColor('blue', v)}
+                    />
+                    <ColorStepper
+                      label={t('greenBalls')}
+                      color="#34C759"
+                      value={multipleConfig.colors.green}
+                      max={Math.min(GREEN_BALLS.length, multipleConfig.totalCount)}
+                      onChange={(v) => updateMultipleColor('green', v)}
+                    />
+                  </>
+                )}
               </View>
             )}
 
@@ -406,6 +738,10 @@ function AppContent() {
       <SettingsModal
         visible={settingsVisible}
         onClose={() => setSettingsVisible(false)}
+      />
+      <DisclaimerModal
+        visible={disclaimerVisible}
+        onAccept={handleAcceptDisclaimer}
       />
     </View>
   );
@@ -522,6 +858,28 @@ const styles = StyleSheet.create({
     marginHorizontal: 2,
   },
 
+  /* Payout Table */
+  payoutTable: {
+    width: '100%',
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(212, 175, 55, 0.2)',
+    paddingTop: 8,
+  },
+  payoutRow: {
+    flexDirection: 'row',
+    paddingVertical: 3,
+  },
+  payoutLabel: {
+    fontSize: 11,
+    color: 'rgba(252, 211, 77, 0.6)',
+    fontWeight: 'bold',
+  },
+  payoutValue: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.85)',
+  },
+
   /* Jackpot */
   jackpotLabel: {
     fontSize: 13,
@@ -545,6 +903,11 @@ const styles = StyleSheet.create({
   },
   goldSymbol: {
     color: '#fcd34d',
+  },
+  nextDrawInfoText: {
+    fontSize: 12,
+    color: 'rgba(252, 211, 77, 0.6)',
+    marginTop: 6,
   },
 
   /* Section Label */
@@ -591,7 +954,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     marginTop: 10,
-    marginBottom: 4,
+    marginBottom: 18,
   },
   timeText: {
     fontSize: 12,
@@ -630,14 +993,17 @@ const styles = StyleSheet.create({
   modeToggle: {
     flexDirection: 'row',
     marginBottom: 12,
-    gap: 10,
+    gap: 6,
+    width: '90%',
+    justifyContent: 'center',
   },
   modeTab: {
-    paddingHorizontal: 24,
+    flex: 1,
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: 'rgba(212, 175, 55, 0.3)',
+    alignItems: 'center',
   },
   modeTabActive: {
     backgroundColor: 'rgba(212, 175, 55, 0.2)',
@@ -731,6 +1097,86 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: 'rgba(252, 211, 77, 0.4)',
     marginTop: 2,
+  },
+
+  /* Banker Display */
+  bankerDisplay: {
+    width: '100%',
+    alignItems: 'center',
+    gap: 8,
+  },
+  bankerGroup: {
+    alignItems: 'center',
+    width: '100%',
+  },
+  bankerGroupLabel: {
+    fontSize: 13,
+    color: '#d4af37',
+    fontWeight: 'bold',
+    letterSpacing: 2,
+    marginBottom: 6,
+  },
+  bankerBallRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  bankerDivider: {
+    width: '60%',
+    height: 1,
+    backgroundColor: 'rgba(212, 175, 55, 0.3)',
+    marginVertical: 4,
+  },
+  bankerSectionDivider: {
+    width: '100%',
+    height: 1,
+    backgroundColor: 'rgba(212, 175, 55, 0.2)',
+    marginVertical: 10,
+  },
+
+  /* Color Filter Toggle */
+  colorFilterToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  colorFilterLabel: {
+    fontSize: 13,
+    color: 'rgba(252, 211, 77, 0.8)',
+    fontWeight: 'bold',
+  },
+  colorFilterSwitch: {
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  colorFilterSwitchOn: {
+    backgroundColor: 'rgba(212, 175, 55, 0.5)',
+  },
+  colorFilterKnob: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  colorFilterKnobOn: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#fcd34d',
+  },
+
+  /* Multiple Grid */
+  multipleGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 6,
+    width: '100%',
   },
 
   /* Fixed Bottom Nav */

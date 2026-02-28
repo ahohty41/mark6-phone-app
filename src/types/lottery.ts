@@ -27,10 +27,29 @@ export interface ApiResponse {
   error?: string;
 }
 
+export interface ColorDistribution {
+  red: number;
+  blue: number;
+  green: number;
+}
+
+export interface BankerConfig {
+  bankerCount: number;        // 1-5
+  bankerColors: ColorDistribution;
+  playerCount: number;        // 1-44 (banker+player ≤ 49)
+  playerColors: ColorDistribution;
+}
+
+export interface MultipleConfig {
+  totalCount: number;         // 7-49
+  colors: ColorDistribution;
+}
+
 export interface HistoryEntry {
   id: number;
   numbers: number[];
   timestamp: Date;
+  bankerCount?: number;
 }
 
 export interface FavoriteEntry {
