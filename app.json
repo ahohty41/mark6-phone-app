@@ -15,7 +15,8 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ahohty.marksixluckydraw"
     },
     "android": {
       "package": "com.ahohty.marksixluckydraw",
@@ -23,7 +24,10 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#450a0a"
       },
-      "permissions": ["android.permission.INTERNET", "android.permission.ACCESS_NETWORK_STATE"]
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -32,9 +36,16 @@
       [
         "react-native-google-mobile-ads",
         {
-          "androidAppId": "ca-app-pub-8422835846268677~4117194898"
+          "androidAppId": "ca-app-pub-8422835846268677~4117194898",
+          "iosAppId": "ca-app-pub-8422835846268677~3225272282"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "1f49928d-5c38-422e-9a8b-79249c918f63"
+      }
+    },
+    "owner": "ahohty"
   }
 }
