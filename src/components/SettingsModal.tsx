@@ -5,6 +5,7 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from '../i18n/LanguageContext';
@@ -19,6 +20,9 @@ const LANG_OPTIONS: { value: Lang; label: string }[] = [
   { value: 'zh', label: '繁體中文' },
   { value: 'en', label: 'English' },
 ];
+
+// TODO: Replace with your actual GitHub Pages URL after enabling Pages
+const PRIVACY_POLICY_URL = 'https://alex-ho-41.github.io/mark6_phone_app/privacy-policy.html';
 
 export const SettingsModal: React.FC<SettingsModalProps> = React.memo(
   ({ visible, onClose }) => {
@@ -69,6 +73,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = React.memo(
                   )}
                 </TouchableOpacity>
               ))}
+            </View>
+
+            <View style={styles.divider} />
+
+            {/* About Section */}
+            <Text style={styles.sectionLabel}>{t('about')}</Text>
+            <TouchableOpacity
+              style={styles.optionRow}
+              onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.optionLabel}>{t('privacyPolicy')}</Text>
+              <Ionicons name="open-outline" size={18} color="rgba(252, 211, 77, 0.6)" />
+            </TouchableOpacity>
+            <View style={styles.versionRow}>
+              <Text style={styles.versionText}>{t('version')} 1.0.0</Text>
             </View>
 
             {/* Gold corners */}
@@ -162,6 +182,14 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderColor: '#d4af37',
+  },
+  versionRow: {
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  versionText: {
+    color: 'rgba(252, 211, 77, 0.4)',
+    fontSize: 12,
   },
   tl: { top: 6, left: 6, borderTopWidth: 2, borderLeftWidth: 2 },
   tr: { top: 6, right: 6, borderTopWidth: 2, borderRightWidth: 2 },

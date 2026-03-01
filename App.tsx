@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,6 +9,8 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
+import { BannerAdComponent } from './src/components/BannerAdComponent';
+import { isExpoGo, AD_UNIT_IDS, INTERSTITIAL_FREQUENCY } from './src/utils/adConfig';
 import { Ball } from './src/components/Ball';
 import { generateMarkSixNumbers, generateBankerNumbers, generateMultipleNumbers, distributeColors, RED_BALLS, BLUE_BALLS, GREEN_BALLS } from './src/utils/lotteryUtils';
 import { generateZodiacNumbers, ZODIAC_LIST, HOUR_LIST, Zodiac, ChineseHour } from './src/utils/zodiacUtils';
@@ -24,9 +26,7 @@ import { SettingsModal } from './src/components/SettingsModal';
 import { DisclaimerModal } from './src/components/DisclaimerModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LanguageProvider, useTranslation } from './src/i18n/LanguageContext';
-
-// TODO: 部署後改為正式 Vercel URL
-const API_URL = 'http://192.168.31.204:3000/api';
+import { apiFetch, getApiUrl } from './src/utils/apiClient';
 
 const formatJackpot = (amount: number): string => {
   return amount.toLocaleString();
@@ -64,6 +64,20 @@ function AppContent() {
   const [bankerResult, setBankerResult] = useState<{ bankers: number[]; players: number[] } | null>(null);
   const [useColorFilter, setUseColorFilter] = useState(false);
   const [disclaimerVisible, setDisclaimerVisible] = useState(true);
+  const generateCountRef = useRef(0);
+  const interstitialRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (isExpoGo) return;
+    const { InterstitialAd, AdEventType } = require('react-native-google-mobile-ads');
+    const ad = InterstitialAd.createForAdRequest(AD_UNIT_IDS.interstitial);
+    interstitialRef.current = ad;
+    const unsubscribe = ad.addAdEventListener(AdEventType.CLOSED, () => {
+      ad.load();
+    });
+    ad.load();
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     const loadStored = async () => {
@@ -107,8 +121,7 @@ function AppContent() {
         return;
       }
       try {
-        const response = await fetch(API_URL);
-        const json: ApiResponse = await response.json();
+        const json = await apiFetch<ApiResponse>('');
         if (json.success && json.data) {
           setLastDraw(json.data);
           if (json.data.nextDraw?.estimatedJackpot) {
@@ -150,6 +163,12 @@ function AppContent() {
 
     setCurrentNumbers(newNumbers);
     setBankerResult(newBankerResult);
+
+    generateCountRef.current += 1;
+    if (generateCountRef.current % INTERSTITIAL_FREQUENCY === 0 && interstitialRef.current?.loaded) {
+      interstitialRef.current.show();
+    }
+
     setHistory((prev) => {
       const entry: HistoryEntry = {
         id: Date.now(),
@@ -698,6 +717,9 @@ function AppContent() {
 
           </ScrollView>
 
+          {/* Banner Ad — placed above nav, not near generate button (AdMob policy) */}
+          <BannerAdComponent />
+
           {/* Fixed Bottom Navigation */}
           <View style={styles.bottomNav}>
             <TouchableOpacity style={styles.navItem} onPress={() => setHistoryVisible(true)}>
@@ -726,7 +748,6 @@ function AppContent() {
       />
       <AnalysisModal
         visible={analysisVisible}
-        apiBaseUrl={API_URL}
         onClose={() => setAnalysisVisible(false)}
       />
       <FavoriteModal

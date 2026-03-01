@@ -15,10 +15,10 @@ import { FrequencyChart } from './FrequencyChart';
 import { DrawResult, AnalyseResponse } from '../types/lottery';
 import { useTranslation } from '../i18n/LanguageContext';
 import { getCache, setCache } from '../utils/cacheUtils';
+import { apiFetch } from '../utils/apiClient';
 
 interface AnalysisModalProps {
   visible: boolean;
-  apiBaseUrl: string;
   onClose: () => void;
 }
 
@@ -49,7 +49,7 @@ const DrawRow = React.memo(({ item }: { item: DrawResult }) => {
 });
 
 export const AnalysisModal: React.FC<AnalysisModalProps> = React.memo(
-  ({ visible, apiBaseUrl, onClose }) => {
+  ({ visible, onClose }) => {
     const { t } = useTranslation();
     const [draws, setDraws] = useState<DrawResult[]>([]);
     const [loading, setLoading] = useState(false);
@@ -67,8 +67,7 @@ export const AnalysisModal: React.FC<AnalysisModalProps> = React.memo(
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`${apiBaseUrl}/analyse?count=${n}`);
-        const json: AnalyseResponse = await response.json();
+        const json = await apiFetch<AnalyseResponse>(`analyse?count=${n}`);
         if (json.success && json.data) {
           setDraws(json.data);
           setCache(cacheKey, json.data);
@@ -80,7 +79,7 @@ export const AnalysisModal: React.FC<AnalysisModalProps> = React.memo(
       } finally {
         setLoading(false);
       }
-    }, [apiBaseUrl, t]);
+    }, [t]);
 
     useEffect(() => {
       if (visible) fetchData(count);

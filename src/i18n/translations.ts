@@ -79,6 +79,9 @@ type TranslationKeys = {
   disclaimerTitle: string;
   acceptContinue: string;
   scrollToAccept: string;
+  privacyPolicy: string;
+  about: string;
+  version: string;
 };
 
 export const translations: Record<Lang, TranslationKeys> = {
@@ -161,6 +164,9 @@ export const translations: Record<Lang, TranslationKeys> = {
     disclaimerTitle: '免責聲明 / Disclaimer',
     acceptContinue: '接受並繼續 / Accept & Continue',
     scrollToAccept: '請捲動至底部以啟用按鈕',
+    privacyPolicy: '隱私政策',
+    about: '關於',
+    version: '版本',
   },
   en: {
     appTitle: 'Mark Six',
@@ -241,5 +247,8 @@ export const translations: Record<Lang, TranslationKeys> = {
     disclaimerTitle: 'Disclaimer',
     acceptContinue: 'Accept & Continue',
     scrollToAccept: 'Please scroll to the bottom to enable the button',
+    privacyPolicy: 'Privacy Policy',
+    about: 'About',
+    version: 'Version',
   },
 };

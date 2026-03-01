@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   FlatList,
   StyleSheet,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Ball } from './Ball';
@@ -21,10 +22,12 @@ interface HistoryModalProps {
 }
 
 const formatTime = (date: Date): string => {
+  const mo = (date.getMonth() + 1).toString().padStart(2, '0');
+  const d = date.getDate().toString().padStart(2, '0');
   const h = date.getHours().toString().padStart(2, '0');
   const m = date.getMinutes().toString().padStart(2, '0');
   const s = date.getSeconds().toString().padStart(2, '0');
-  return `${h}:${m}:${s}`;
+  return `${mo}-${d} ${h}:${m}:${s}`;
 };
 
 const HistoryRow = React.memo(
@@ -44,11 +47,18 @@ const HistoryRow = React.memo(
           </TouchableOpacity>
         </View>
       </View>
-      <View style={styles.ballRow}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.ballRow,
+          { justifyContent: item.numbers.length > 7 ? 'flex-start' : 'space-evenly' }
+        ]}
+      >
         {item.numbers.map((num) => (
           <Ball key={num} number={num} size="small" />
         ))}
-      </View>
+      </ScrollView>
     </View>
   ),
 );
@@ -57,53 +67,53 @@ export const HistoryModal: React.FC<HistoryModalProps> = React.memo(
   ({ visible, history, favoriteKeys, onClose, onToggleFavorite }) => {
     const { t } = useTranslation();
     return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent
-      onRequestClose={onClose}
-    >
-      <View style={styles.overlay}>
-        <View style={styles.container}>
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.title}>{t('historyTitle')}</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color="#fcd34d" />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.divider} />
-
-          {history.length === 0 ? (
-            <View style={styles.empty}>
-              <Text style={styles.emptyText}>{t('noHistory')}</Text>
+      <Modal
+        visible={visible}
+        animationType="slide"
+        transparent
+        onRequestClose={onClose}
+      >
+        <View style={styles.overlay}>
+          <View style={styles.container}>
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={styles.title}>{t('historyTitle')}</Text>
+              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                <Ionicons name="close" size={24} color="#fcd34d" />
+              </TouchableOpacity>
             </View>
-          ) : (
-            <FlatList
-              data={history}
-              keyExtractor={(item) => item.id.toString()}
-              renderItem={({ item, index }) => (
-                <HistoryRow
-                  item={item}
-                  index={index}
-                  isFav={favoriteKeys.has(item.numbers.join(','))}
-                  onToggleFavorite={onToggleFavorite}
-                />
-              )}
-              contentContainerStyle={styles.list}
-              showsVerticalScrollIndicator={false}
-            />
-          )}
 
-          {/* 四角金邊 */}
-          <View style={[styles.corner, styles.tl]} />
-          <View style={[styles.corner, styles.tr]} />
-          <View style={[styles.corner, styles.bl]} />
-          <View style={[styles.corner, styles.br]} />
+            <View style={styles.divider} />
+
+            {history.length === 0 ? (
+              <View style={styles.empty}>
+                <Text style={styles.emptyText}>{t('noHistory')}</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={history}
+                keyExtractor={(item) => item.id.toString()}
+                renderItem={({ item, index }) => (
+                  <HistoryRow
+                    item={item}
+                    index={index}
+                    isFav={favoriteKeys.has(item.numbers.join(','))}
+                    onToggleFavorite={onToggleFavorite}
+                  />
+                )}
+                contentContainerStyle={styles.list}
+                showsVerticalScrollIndicator={false}
+              />
+            )}
+
+            {/* 四角金邊 */}
+            <View style={[styles.corner, styles.tl]} />
+            <View style={[styles.corner, styles.tr]} />
+            <View style={[styles.corner, styles.bl]} />
+            <View style={[styles.corner, styles.br]} />
+          </View>
         </View>
-      </View>
-    </Modal>
+      </Modal>
     );
   },
 );
@@ -201,9 +211,11 @@ const styles = StyleSheet.create({
   },
   ballRow: {
     flexDirection: 'row',
-    justifyContent: 'space-evenly',
     alignItems: 'center',
     paddingVertical: 6,
+    minWidth: '100%',
+    gap: 8,
+    paddingHorizontal: 4,
   },
   corner: {
     position: 'absolute',

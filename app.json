@@ -18,13 +18,23 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.ahohty.marksixluckydraw",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#450a0a"
-      }
+      },
+      "permissions": ["android.permission.INTERNET", "android.permission.ACCESS_NETWORK_STATE"]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-8422835846268677~4117194898"
+        }
+      ]
+    ]
   }
 }
