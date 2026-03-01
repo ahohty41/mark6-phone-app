@@ -22,7 +22,7 @@ const LANG_OPTIONS: { value: Lang; label: string }[] = [
 ];
 
 // TODO: Replace with your actual GitHub Pages URL after enabling Pages
-const PRIVACY_POLICY_URL = 'https://ahohty41.github.io/mark6_phone_app/privacy-policy.html';
+const PRIVACY_POLICY_URL = 'https://ahohty41.github.io/mark6-phone-app/privacy-policy.html';
 
 export const SettingsModal: React.FC<SettingsModalProps> = React.memo(
   ({ visible, onClose }) => {
