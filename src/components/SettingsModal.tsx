@@ -9,6 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { useTranslation } from '../i18n/LanguageContext';
 import { Lang } from '../i18n/translations';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -25,6 +26,7 @@ const LANG_OPTIONS: { value: Lang; label: string }[] = [
 ];
 
 const PRIVACY_POLICY_URL = 'https://ahohty41.github.io/mark6-phone-app/privacy-policy.html';
+const APP_VERSION = Constants.expoConfig?.version ?? '1.0.0';
 
 export const SettingsModal: React.FC<SettingsModalProps> = React.memo(
   ({ visible, onClose, onReset }) => {
@@ -119,7 +121,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = React.memo(
             </TouchableOpacity>
 
             <View style={styles.versionRow}>
-              <Text style={styles.versionText}>{t('version')} 1.0.0</Text>
+              <Text style={styles.versionText}>{t('version')} {APP_VERSION}</Text>
             </View>
 
             {/* Gold corners */}

@@ -4,7 +4,6 @@ import {
   Text,
   View,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
   ScrollView,
   ActivityIndicator,
@@ -27,6 +26,7 @@ import { SettingsModal } from './src/components/SettingsModal';
 import { DisclaimerModal } from './src/components/DisclaimerModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LanguageProvider, useTranslation } from './src/i18n/LanguageContext';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { apiFetch, getApiUrl } from './src/utils/apiClient';
 import { scale } from './src/utils/scale';
 
@@ -857,9 +857,11 @@ function AppContent() {
 
 export default function App() {
   return (
-    <LanguageProvider>
-      <AppContent />
-    </LanguageProvider>
+    <SafeAreaProvider>
+      <LanguageProvider>
+        <AppContent />
+      </LanguageProvider>
+    </SafeAreaProvider>
   );
 }
 
@@ -1294,7 +1296,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     alignItems: 'center',
     paddingVertical: 10,
-    paddingBottom: Platform.OS === 'android' ? 24 : 10,
     borderTopWidth: 1,
     borderTopColor: 'rgba(212, 175, 55, 0.15)',
     backgroundColor: 'rgba(69, 10, 10, 0.95)',

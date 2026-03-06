@@ -1,9 +1,11 @@
 import { ExpoConfig, ConfigContext } from 'expo/config';
 
+const { version } = require('./package.json');
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   name: 'MarkSixLuckyDraw',
   slug: 'mark6-phone-app',
-  version: '1.0.2',
+  version,
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'light',

@@ -209,16 +209,16 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(212, 175, 55, 0.5)',
     backgroundColor: '#b91c1c',
     alignItems: 'center',
-    width: '100%',
+    alignSelf: 'stretch',
   },
   acceptButtonDisabled: {
     opacity: 0.4,
   },
   acceptText: {
     color: '#fcd34d',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
-    letterSpacing: 2,
+    textAlign: 'center',
   },
   acceptTextDisabled: {
     opacity: 0.5,
