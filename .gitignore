@@ -37,6 +37,13 @@ MarkSix_App_Roadmap.md
 .claude/
 mark6_security_audit.md
 
+# Native build directories
+ios/
+android/
+
+# Backup files
+assets/icon_backup.png
+
 # OS
 .DS_Store
 Thumbs.db

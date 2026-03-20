@@ -1,10 +1,27 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Text } from 'react-native';
 import { isExpoGo, AD_UNIT_IDS } from '../utils/adConfig';
 
 export function BannerAdComponent() {
+  const [adsReady, setAdsReady] = useState(false);
+
+  useEffect(() => {
+    if (isExpoGo) return;
+    let mounted = true;
+    const init = async () => {
+      try {
+        const mobileAds = require('react-native-google-mobile-ads').default;
+        await mobileAds().initialize();
+        if (mounted) setAdsReady(true);
+      } catch (error) {
+        console.warn('Failed to initialize mobile ads:', error);
+      }
+    };
+    init();
+    return () => { mounted = false; };
+  }, []);
+
   if (isExpoGo) {
-    // Show a mock for Expo Go so developers can see where the ad would be
     return (
       <View style={[styles.container, styles.mockContainer]}>
         <View style={styles.mockInner}>
@@ -16,18 +33,29 @@ export function BannerAdComponent() {
     );
   }
 
-  // Dynamic require so Expo Go never loads the native module
-  const { BannerAd, BannerAdSize } = require('react-native-google-mobile-ads');
+  if (!adsReady) {
+    return <View style={styles.container} />;
+  }
 
-  return (
-    <View style={styles.container}>
-      <BannerAd
-        unitId={AD_UNIT_IDS.banner}
-        size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-        requestOptions={{ requestNonPersonalizedAdsOnly: false }}
-      />
-    </View>
-  );
+  try {
+    const { BannerAd, BannerAdSize } = require('react-native-google-mobile-ads');
+
+    return (
+      <View style={styles.container}>
+        <BannerAd
+          unitId={AD_UNIT_IDS.banner}
+          size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+          requestOptions={{ requestNonPersonalizedAdsOnly: false }}
+          onAdFailedToLoad={(error: any) => {
+            console.warn('Banner ad failed to load:', error);
+          }}
+        />
+      </View>
+    );
+  } catch (error) {
+    console.warn('Failed to load ad module:', error);
+    return <View />;
+  }
 }
 
 const styles = StyleSheet.create({

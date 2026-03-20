@@ -29,6 +29,8 @@ import { LanguageProvider, useTranslation } from './src/i18n/LanguageContext';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { apiFetch, getApiUrl } from './src/utils/apiClient';
 import { scale } from './src/utils/scale';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
+import * as Font from 'expo-font';
 
 const formatJackpot = (amount: number): string => {
   return amount.toLocaleString();
@@ -72,14 +74,24 @@ function AppContent() {
 
   useEffect(() => {
     if (isExpoGo) return;
-    const { InterstitialAd, AdEventType } = require('react-native-google-mobile-ads');
-    const ad = InterstitialAd.createForAdRequest(AD_UNIT_IDS.interstitial);
-    interstitialRef.current = ad;
-    const unsubscribe = ad.addAdEventListener(AdEventType.CLOSED, () => {
-      ad.load();
-    });
-    ad.load();
-    return unsubscribe;
+    let unsubscribe: (() => void) | undefined;
+    const initAds = async () => {
+      try {
+        const mobileAds = require('react-native-google-mobile-ads').default;
+        await mobileAds().initialize();
+        const { InterstitialAd, AdEventType } = require('react-native-google-mobile-ads');
+        const ad = InterstitialAd.createForAdRequest(AD_UNIT_IDS.interstitial);
+        interstitialRef.current = ad;
+        unsubscribe = ad.addAdEventListener(AdEventType.CLOSED, () => {
+          ad.load();
+        });
+        ad.load();
+      } catch (error) {
+        console.warn('Failed to initialize interstitial ad:', error);
+      }
+    };
+    initAds();
+    return () => unsubscribe?.();
   }, []);
 
   useEffect(() => {
@@ -174,7 +186,11 @@ function AppContent() {
 
     generateCountRef.current += 1;
     if (generateCountRef.current % INTERSTITIAL_FREQUENCY === 0 && interstitialRef.current?.loaded) {
-      interstitialRef.current.show();
+      try {
+        interstitialRef.current.show();
+      } catch (error) {
+        console.warn('Failed to show interstitial ad:', error);
+      }
     }
 
     setHistory((prev) => {
@@ -856,12 +872,31 @@ function AppContent() {
 }
 
 export default function App() {
+  const [fontsLoaded, setFontsLoaded] = useState(false);
+
+  useEffect(() => {
+    Font.loadAsync({
+      'ionicons': require('@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf'),
+      'material-community': require('@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialCommunityIcons.ttf'),
+    }).then(() => setFontsLoaded(true)).catch(() => setFontsLoaded(true));
+  }, []);
+
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#450a0a', justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator color="#fcd34d" />
+      </View>
+    );
+  }
+
   return (
-    <SafeAreaProvider>
-      <LanguageProvider>
-        <AppContent />
-      </LanguageProvider>
-    </SafeAreaProvider>
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <LanguageProvider>
+          <AppContent />
+        </LanguageProvider>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }
 
