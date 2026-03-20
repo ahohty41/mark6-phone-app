@@ -66,7 +66,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     package: 'com.ahohty.marksixluckydraw',
-    versionCode: 8,
+    versionCode: 9,
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: '#450a0a',

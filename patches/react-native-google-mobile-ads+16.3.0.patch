@@ -1,0 +1,17 @@
+diff --git a/node_modules/react-native-google-mobile-ads/ios/RNGoogleMobileAds/common/RNRCTEventEmitter.mm b/node_modules/react-native-google-mobile-ads/ios/RNGoogleMobileAds/common/RNRCTEventEmitter.mm
+index d4088ce..92f4f6f 100644
+--- a/node_modules/react-native-google-mobile-ads/ios/RNGoogleMobileAds/common/RNRCTEventEmitter.mm
++++ b/node_modules/react-native-google-mobile-ads/ios/RNGoogleMobileAds/common/RNRCTEventEmitter.mm
+@@ -82,7 +82,11 @@ - (void)sendEventWithName:(NSString *)eventName body:(id)body {
+                       completion:NULL];
+     } else {
+       @synchronized(self.queuedEvents) {
+-        [self.queuedEvents addObject:@{RNRCTEventNameKey : eventName, RNRCTEventBodyKey : body}];
++        if (body != nil) {
++          [self.queuedEvents addObject:@{RNRCTEventNameKey : eventName, RNRCTEventBodyKey : body}];
++        } else {
++          [self.queuedEvents addObject:@{RNRCTEventNameKey : eventName}];
++        }
+       }
+     }
+   }
